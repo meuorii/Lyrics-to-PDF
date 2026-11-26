@@ -91,3 +91,115 @@ test('browser production generation uses resolved A3, A6, Long Bond and custom p
   expect(results.map((result) => result.size)).toEqual(['A3', 'A6', 'Long Bond', 'Custom']);
   expect(results.every((result) => result.pageCount === 1 && result.byteLength > 1000)).toBe(true);
 });
+
+test('browser loads multilingual fonts on demand and renders mixed-script continuation pages', async ({ page }) => {
+  const fontRequests: string[] = [];
+  const origin = new URL('http://127.0.0.1:4173').origin;
+  page.on('request', (request) => {
+    const url = new URL(request.url());
+    if (url.pathname.includes('/fonts/pdf/')) {
+      expect(url.origin).toBe(origin);
+      fontRequests.push(url.pathname);
+    }
+  });
+  await page.goto('/');
+  const result = await page.evaluate(async () => {
+    const [{ generatePdf }, { processSongInput }, pdfjs] = await Promise.all([
+      import('/src/features/pdf/generate-pdf.ts'),
+      import('/src/features/lyrics/validate-input.ts'),
+      import('/node_modules/pdfjs-dist/build/pdf.mjs'),
+    ]);
+    pdfjs.GlobalWorkerOptions.workerSrc = '/node_modules/pdfjs-dist/build/pdf.worker.min.mjs';
+    const latin = processSongInput({
+      title: 'A Small Paper Moon',
+      artist: 'Synthetic Test',
+      rawLyrics: 'Bahay-kubo, cafe\u0301, and a lantern in the morning.',
+      paper: { size: 'A4' },
+    });
+    if (!latin.success) throw new Error('The Latin browser fixture did not validate.');
+    const latinSnapshot = await generatePdf(latin.data);
+    const latinRequests = performance.getEntriesByType('resource').filter((entry) => entry.name.includes('/fonts/pdf/')).length;
+    const title = '日本語の歌と灯り '.repeat(7).trim();
+    const artist = '한국어의 가수 '.repeat(6).trim();
+    const lyrics = [
+      'Bahay-kubo at café\u0301; 한국어의 노래; 日本語かなカナ漢字; 简体中文; 繁體中文.',
+      ...Array.from({ length: 140 }, (_, index) => 'Browser flow marker ' + String(index + 1).padStart(3, '0')),
+      '',
+      '[Chorus]',
+      'Together under the quiet morning light.',
+    ].join('\n');
+    const mixed = processSongInput({ title, artist, rawLyrics: lyrics, paper: { size: 'A4' } });
+    if (!mixed.success) throw new Error('The multilingual browser fixture did not validate.');
+    const started = performance.now();
+    const snapshot = await generatePdf(mixed.data);
+    const firstGenerationMs = performance.now() - started;
+    const repeatStarted = performance.now();
+    const repeated = await generatePdf(mixed.data);
+    const repeatedGenerationMs = performance.now() - repeatStarted;
+    const loadingTask = pdfjs.getDocument({ data: snapshot.bytes.slice() });
+    try {
+      const document = await loadingTask.promise;
+      const pageTexts = [];
+      const fontNames = new Set<string>();
+      let darkPixels = 0;
+      for (let number = 1; number <= document.numPages; number += 1) {
+        const pdfPage = await document.getPage(number);
+        const content = await pdfPage.getTextContent({ disableNormalization: true });
+        const items = content.items.filter((item) => 'str' in item);
+        for (const item of items) fontNames.add(item.fontName);
+        pageTexts.push(items.map((item) => item.str).join(''));
+        if (number === 1) {
+          const viewport = pdfPage.getViewport({ scale: 1 });
+          const canvas = globalThis.document.createElement('canvas');
+          canvas.width = viewport.width;
+          canvas.height = viewport.height;
+          const context = canvas.getContext('2d');
+          if (!context) throw new Error('Canvas rendering is unavailable.');
+          await pdfPage.render({ canvasContext: context, viewport }).promise;
+          globalThis.document.body.append(canvas);
+          const pixels = context.getImageData(0, 0, canvas.width, canvas.height).data;
+          for (let index = 0; index < pixels.length; index += 4) {
+            if (pixels[index]! < 80 && pixels[index + 1]! < 80 && pixels[index + 2]! < 80) darkPixels += 1;
+          }
+        }
+      }
+      const heap = (performance as Performance & { memory?: { usedJSHeapSize: number } }).memory;
+      return {
+        latinBytes: latinSnapshot.bytes.byteLength,
+        latinFontRequestCount: latinRequests,
+        bytes: snapshot.bytes.byteLength,
+        repeatedBytes: repeated.bytes.byteLength,
+        pageCount: document.numPages,
+        pageTexts,
+        fontCount: fontNames.size,
+        darkPixels,
+        firstGenerationMs,
+        repeatedGenerationMs,
+        usedHeapBytes: heap?.usedJSHeapSize,
+      };
+    } finally {
+      await loadingTask.destroy();
+    }
+  });
+
+  expect(result.latinFontRequestCount).toBe(0);
+  expect(fontRequests.map((path) => path.split('/').at(-1)).sort()).toEqual([
+    'NotoSansJP-Bold.otf', 'NotoSansJP-Regular.otf',
+    'NotoSansKR-Bold.otf', 'NotoSansKR-Regular.otf',
+    'NotoSansSC-Bold.otf', 'NotoSansSC-Regular.otf',
+    'NotoSansTC-Bold.otf', 'NotoSansTC-Regular.otf',
+  ]);
+  expect(result.pageCount).toBeGreaterThan(1);
+  expect(result.pageTexts.every((text) => text.includes('日本語の歌と灯り') && text.includes('한국어의 가수'))).toBe(true);
+  const allText = result.pageTexts.join('');
+  for (const phrase of ['Bahay-kubo', '한국어의 노래', '日本語かなカナ漢字', '简体中文', '繁體中文', 'Browser flow marker 140', '[Chorus]']) {
+    expect(allText).toContain(phrase);
+  }
+  expect(allText).not.toContain('\uFFFD');
+  expect(allText).not.toContain('\u0000');
+  expect(result.fontCount).toBeGreaterThan(1);
+  expect(result.darkPixels).toBeGreaterThan(1000);
+  expect(result.bytes).toBe(result.repeatedBytes);
+  console.log(`Multilingual PDF: ${result.pageCount} pages, ${result.bytes} bytes; generation ${result.firstGenerationMs.toFixed(0)} ms cold / ${result.repeatedGenerationMs.toFixed(0)} ms warm; browser heap ${result.usedHeapBytes ?? 'unavailable'} bytes.`);
+  await page.locator('canvas').screenshot({ path: 'test-results/phase4-multilingual-first-page.png' });
+});

@@ -27,7 +27,8 @@
     "pdfjs-dist": "^6.5.438",
     "pdfmake": "^0.3.15",
     "react": "^19.3.1",
-    "react-dom": "^19.3.1"
+    "react-dom": "^19.3.1",
+    "linebreak": "2.0.0"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",

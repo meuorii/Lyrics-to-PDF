@@ -50,9 +50,19 @@ Lightweight records for decisions that affect future implementation. Product req
 
 ## Known constraints and Phase 2+ considerations
 
-- Production generation supports registered and custom portrait dimensions. Unsupported glyphs outside the bundled Roboto cmap, oversized indivisible tokens, and unsafe header geometry return typed errors.
-- The Phase 1 synthetic sample still passes raw text directly; production rendering, section-aware styling, pagination edge cases, filename and download are not implemented.
-- Header reservation is fixed for normal title/artist strings; long metadata wrapping must be measured and validated later.
-- Current Roboto fallback cannot serve CJK; Hangul was confirmed missing. Do not ship as final typography.
+- Production generation supports registered and custom portrait dimensions. Unsupported glyphs outside embedded Roboto/Noto CJK coverage, oversized indivisible tokens, and unsafe header geometry return typed errors.
+- The Phase 1 synthetic sample still passes raw text directly; production editor, preview and download workflow remain later phases.
+- Ambiguous Han-only text defaults to Japanese. PDF extraction may compose decomposed accents to NFC-equivalent text.
+- Aptos redistribution/embedding rights remain unverified; production uses licensed Roboto and Noto Sans CJK assets.
 - The minimal shell is a synthetic generation harness; production editor, preview and download controls remain later phases. The PDF engine and PDF.js inspection are lazy loaded.
 - No Vercel deploy config is added until the later release phase.
+
+## TD-11 — Phase 4 multilingual layout and pagination
+
+**Context:** Phase 4 requires selectable mixed Latin/Korean/Japanese/Simplified Chinese/Traditional Chinese output, reliably wrapped headers, Unicode-safe lyric wrapping, and deterministic section-aware two-column flow. **Font decision:** retain pdfmake VFS Roboto for verified Latin/Filipino coverage. Bundle official static Noto Sans CJK SubsetOTF version 2.004 JP, KR, SC and TC regular and bold faces from release `Sans2.004`, licensed OFL 1.1; checksums, byte sizes, license copy and upstream provenance are in `docs/THIRD_PARTY_NOTICES.md`. Load fixed same-origin assets on demand, deduplicate concurrent loads, cache parsed fontkit faces and retry after failed loads. Actual cmap checks select a preferred script face; fallback tries other loaded faces by coverage. Unsupported graphemes return generic `unsupported-glyph` errors. Han-only ambiguous text defaults deterministically to Japanese; Kana/Hangul context and Simplified/Traditional region clues select other regional faces. This is not a universal Unicode or language-identification claim.
+
+**Layout decision:** Use `Intl.Segmenter` grapheme boundaries and UAX 14 line-break opportunities (`linebreak`) with fontkit metrics. Dynamic title and artist lines wrap at full usable page width; their measured block determines the repeated header and exact body top. Keep a section label with its first visual lyric line. A pure paginator places units down the left column, then the right column, then the next page; it suppresses boundary separators and terminal blank pages while preserving source text and order. Exact-fit and too-tall-item outcomes are explicit.
+
+**Renderer adapter:** Retain pdfmake for PDF generation and font embedding. Feed planned pagination through explicitly positioned text nodes with page-break-before markers instead of native `snakingColumns`: a fixture planned for 3 pages produced 5 pages with native stacks because pdfmake's internal wrapping/column flow did not match measured line placement. The adapter's generated PDF.js page count matches the pure plan in tested column and page boundary fixtures. This follows the authorized fallback for renderer disagreement. It does not balance columns or scale text.
+
+**Evidence / limits:** `npm run test` covers mixed runs, actual fonts, extraction, repeated dynamic headers, custom paper, wrapping, boundaries, exact fit, section grouping and typed failure. Chromium verifies same-origin lazy requests, no CJK requests for Latin-only input, mixed-script extraction, continuation headers, stable PDF bytes and rendered canvas content. PDF.js extraction composes a decomposed accent to its NFC-equivalent character during font shaping/extraction; user input is not normalized or mutated before layout and the semantic text is equivalent, but code-point-identical NFD extraction is not promised. Aptos remains preferred by the source spec but unavailable with verified redistribution rights, so it is not bundled.

@@ -1,4 +1,6 @@
-import { describe, expect, it } from 'vitest';
+import { readFile } from 'node:fs/promises';
+import { join } from 'node:path';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import * as pdfjs from 'pdfjs-dist/legacy/build/pdf.mjs';
 import { generatePdf } from '../../src/features/pdf/generate-pdf';
 import { PDF_LAYOUT } from '../../src/features/pdf/layout-config';
@@ -19,7 +21,7 @@ async function inspect(snapshot: Awaited<ReturnType<typeof generatePdf>>) {
     const pages = [];
     for (let number = 1; number <= document.numPages; number += 1) {
       const page = await document.getPage(number);
-      const content = await page.getTextContent();
+      const content = await page.getTextContent({ disableNormalization: true });
       pages.push({
         viewport: page.getViewport({ scale: 1 }),
         items: content.items.filter((item) => 'str' in item).map((item) => ({
@@ -39,6 +41,14 @@ async function inspect(snapshot: Awaited<ReturnType<typeof generatePdf>>) {
 }
 
 describe('production PDF generation', () => {
+  beforeEach(() => {
+    vi.stubGlobal('fetch', async (input: RequestInfo | URL) => {
+      const filename = new URL(String(input)).pathname.split('/').at(-1)!;
+      return new Response(await readFile(join(process.cwd(), 'public/fonts/pdf', filename)));
+    });
+  });
+  afterEach(() => vi.unstubAllGlobals());
+
   it('renders a non-A4 paper size instead of rejecting it', async () => {
     const result = await generatePdf(validSong({ size: 'A5' }));
     const page = (await inspect(result))[0]!;
@@ -140,13 +150,104 @@ describe('production PDF generation', () => {
   });
 
   it('rejects unsupported glyphs instead of creating corrupted PDF text', async () => {
-    await expect(generatePdf(validSong({ size: 'A4' }, '안녕하세요'))).rejects.toMatchObject({ code: 'unsupported-glyph' });
-    await expect(generatePdf(validSong({ size: 'A4' }, 'Valid lyrics', '안녕하세요'))).rejects.toMatchObject({ code: 'unsupported-glyph' });
-    await expect(generatePdf(validSong({ size: 'A4' }, 'Valid lyrics', 'Title', '안녕하세요'))).rejects.toMatchObject({ code: 'unsupported-glyph' });
+    await expect(generatePdf(validSong({ size: 'A4' }, '🛠'))).rejects.toMatchObject({ code: 'unsupported-glyph' });
   });
 
-  it('rejects unbreakable lyric tokens wider than a column', async () => {
-    await expect(generatePdf(validSong({ size: 'A6' }, 'W'.repeat(1000)))).rejects.toMatchObject({ code: 'unsafe-layout' });
+  it('embeds appropriate fonts for Korean, Japanese, Simplified and Traditional Chinese in mixed text', async () => {
+    const lyric = 'Bahay-kubo sa ilalim ng punong mangga; Cafe\u0301; 한국어 日本語かなカナ 简体中文 繁體中文 English';
+    const snapshot = await generatePdf(validSong({ size: 'A4' }, lyric, '日本語와 English', '작가 Artist'));
+    const pages = await inspect(snapshot);
+    const text = pages.flatMap((page) => page.items.map((item) => item.text)).join('');
+    const body = pages.flatMap((page) => page.items.filter((item) => item.y < page.viewport.height - 15 * 72 / 25.4 - 16 - 11 - 12 + 2).map((item) => item.text)).join('').replace(/\s+/gu, '');
+    expect(body.normalize('NFC')).toContain(lyric.replace(/\s+/gu, '').normalize('NFC'));
+    expect(text).toContain('日本語와 English');
+    expect(text).toContain('작가 Artist');
+    expect(new TextDecoder('latin1').decode(snapshot.bytes)).toContain('/FontFile3');
+  }, 30_000);
+
+  it('wraps CJK lines at grapheme boundaries and preserves all characters', async () => {
+    const lyric = '日本語歌詞'.repeat(20);
+    const snapshot = await generatePdf(validSong({ size: 'A6' }, lyric));
+    const pages = await inspect(snapshot);
+    const body = pages.flatMap((page) => page.items.filter((item) => item.text !== 'Paper Lanterns' && item.text !== 'The Quiet Signals').map((item) => item.text)).join('');
+    expect(body).toBe(lyric);
+    expect(pages.flatMap((page) => page.items).filter((item) => item.text.length > 0).length).toBeGreaterThan(1);
+  });
+
+  it('wraps long title and artist and places body after the measured repeated header', async () => {
+    const title = '日本語の長い曲名 '.repeat(8).trim();
+    const artist = '作曲家と歌手 '.repeat(8).trim();
+    const snapshot = await generatePdf(validSong({ size: 'A4' }, 'Header follows the lyrics', title, artist));
+    const pages = await inspect(snapshot);
+    expect(pages[0]!.items.some((item) => item.text === 'Header follows the lyrics')).toBe(true);
+    for (const page of pages) {
+      const titleItems = page.items.filter((item) => item.text.length > 0 && title.includes(item.text));
+      const artistItems = page.items.filter((item) => item.text.length > 0 && artist.includes(item.text));
+      expect(titleItems.length).toBeGreaterThan(1);
+      expect(artistItems.length).toBeGreaterThan(1);
+      const lowestHeader = Math.min(...[...titleItems, ...artistItems].map((item) => item.y));
+      const body = page.items.find((item) => item.text === 'Header follows the lyrics');
+      if (body) expect(body.y).toBeLessThan(lowestHeader - 12);
+    }
+  });
+
+  it('keeps a section label with its first lyric line when approaching a column boundary', async () => {
+    const before = Array.from({ length: 23 }, (_, index) => 'Previous ' + index).join('\n');
+    const snapshot = await generatePdf(validSong({ size: 'A6' }, `${before}\n\n[Chorus]\nTogether we sing`));
+    const pages = await inspect(snapshot);
+    const label = pages.flatMap((page) => page.items).find((item) => item.text === '[Chorus]')!;
+    const firstLine = pages.flatMap((page) => page.items).find((item) => item.text === 'Together we sing')!;
+    expect(label).toBeDefined();
+    expect(firstLine).toBeDefined();
+    expect(label.x).toBeCloseTo(firstLine.x, 1);
+    const lastPrevious = pages.flatMap((page) => page.items).find((item) => item.text === 'Previous 22')!;
+    expect(label.x).toBeGreaterThan(lastPrevious.x);
+    expect(label.y).toBeGreaterThan(firstLine.y);
+  });
+
+  it.each([{ precedingLines: 23, expectedPage: 0 }, { precedingLines: 47, expectedPage: 1 }])(
+    'keeps the section start together at a real column/page boundary after $precedingLines lyric lines',
+    async ({ precedingLines, expectedPage }) => {
+      const before = Array.from({ length: precedingLines }, (_, index) => 'P' + String(index + 1).padStart(2, '0')).join('\n');
+      const snapshot = await generatePdf(validSong({ size: 'A6' }, before + '\n\n[Chorus]\nFirst chorus line'));
+      const pages = await inspect(snapshot);
+      const labelPageIndex = pages.findIndex((page) => page.items.some((item) => item.text === '[Chorus]'));
+      expect(snapshot.pageCount).toBe(expectedPage + 1);
+      expect(labelPageIndex).toBe(expectedPage);
+      const page = pages[labelPageIndex]!;
+      const label = page.items.find((item) => item.text === '[Chorus]')!;
+      const firstLine = page.items.find((item) => item.text === 'First chorus line')!;
+      expect(label.x).toBeCloseTo(firstLine.x, 1);
+      expect(label.y).toBeGreaterThan(firstLine.y);
+      if (expectedPage === 0) {
+        const prior = page.items.find((item) => item.text === 'P' + String(precedingLines).padStart(2, '0'))!;
+        expect(label.x).toBeGreaterThan(prior.x);
+      }
+      if (expectedPage === 1) {
+        expect(label.x).toBeCloseTo(15 * 72 / 25.4, 0);
+        expect(label.y).toBeGreaterThan(pages[0]!.items.find((item) => item.text === 'P47')!.y);
+      }
+    },
+  );
+
+  it('preserves section and stanza gaps within a column without adding a leading boundary gap', async () => {
+    const snapshot = await generatePdf(validSong({ size: 'A4' }, '[Verse]\nFirst stanza\n\nSecond stanza\n\n[Chorus]\nFirst chorus line'));
+    const pages = await inspect(snapshot);
+    const first = pages[0]!.items.find((item) => item.text === 'First stanza')!;
+    const second = pages[0]!.items.find((item) => item.text === 'Second stanza')!;
+    const chorus = pages[0]!.items.find((item) => item.text === '[Chorus]')!;
+    expect(first.x).toBeCloseTo(second.x, 1);
+    expect(second.x).toBeCloseTo(chorus.x, 1);
+    expect(first.y - second.y).toBeCloseTo(24, 0);
+    expect(second.y - chorus.y).toBeCloseTo(24, 0);
+  });
+
+  it('wraps a long unbroken token by grapheme without losing its content', async () => {
+    const text = 'W'.repeat(1000);
+    const snapshot = await generatePdf(validSong({ size: 'A6' }, text));
+    const body = (await inspect(snapshot)).flatMap((page) => page.items.map((item) => item.text)).filter((value) => !['Paper Lanterns', 'The Quiet Signals', '[Verse 1]'].includes(value)).join('');
+    expect(body).toBe(text);
+    expect(snapshot.pageCount).toBeGreaterThan(1);
   });
 
   it('rejects paper geometry beyond the PDF page limit', async () => {
@@ -165,7 +266,7 @@ describe('production PDF generation', () => {
     const snapshot = await generatePdf(validSong({ size: 'A6' }, line));
     const pages = await inspect(snapshot);
     const bodyItems = pages.flatMap((page) => page.items.filter((item) => item.text !== 'Paper Lanterns' && item.text !== 'The Quiet Signals'));
-    expect(bodyItems.map((item) => item.text).join(' ')).toContain(line);
+    expect(bodyItems.map((item) => item.text).join(' ').match(/\S+/gu)).toEqual(line.match(/\S+/gu));
     expect(new Set(bodyItems.map((item) => item.y)).size).toBeGreaterThan(1);
     expect(bodyItems.every((item) => item.x + item.width <= pages[0]!.viewport.width - 15 * 72 / 25.4 + 1)).toBe(true);
   });
@@ -182,9 +283,15 @@ describe('production PDF generation', () => {
     expect(snapshot.bytes).toEqual(before);
   });
 
-  it('rejects multiline or overwide headers safely', async () => {
-    await expect(generatePdf(validSong({ size: 'A4' }, 'Lyric', 'A title\nthat wraps'))).rejects.toMatchObject({ code: 'unsafe-layout' });
-    await expect(generatePdf(validSong({ size: 'A6' }, 'Lyric', 'W'.repeat(500)))).rejects.toMatchObject({ code: 'unsafe-layout' });
+  it('wraps multiline and overwide headers without clipping', async () => {
+    const title = 'A title\nthat wraps ' + 'W'.repeat(50);
+    const snapshot = await generatePdf(validSong({ size: 'A6' }, 'Lyric', title, 'Artist'));
+    const pages = await inspect(snapshot);
+    const renderedTitle = pages.flatMap((page) => page.items).filter((item) => item.text && title.includes(item.text)).map((item) => item.text).join('');
+    expect(renderedTitle).toContain('A title');
+    expect(renderedTitle).toContain('that wraps');
+    expect(renderedTitle).toContain('W'.repeat(50));
+    expect(pages[0]!.items.find((item) => item.text === 'Lyric')!.y).toBeLessThan(pages[0]!.items.find((item) => item.text.includes('Artist'))!.y);
   });
 
   it('exports the shared approved layout constants', () => {

@@ -4,7 +4,7 @@ A client-side foundation for a focused utility that formats user-provided song l
 
 ## Current status
 
-Phases 1–3 — Technical Foundation & Feasibility, Lyrics Processing & Validation Engine, and Core PDF Generation Engine — are complete (3/7 phases, 44%). The repository contains pure lyrics normalization/validation, paper dimension resolution, and a browser PDF generator that returns a byte snapshot and Blob for registered and custom portrait paper sizes. Its embedded Roboto font safely rejects unsupported glyphs; multilingual fallback and pagination hardening are Phase 4. The production editor, preview controls and download workflow remain for later phases.
+Phases 1–4 — Technical Foundation & Feasibility, Lyrics Processing & Validation Engine, Core PDF Generation Engine, and Advanced Pagination & Multilingual Support — are complete (4/7 phases, 60%). The browser PDF generator supports the nine standard sizes and validated custom portrait paper, dynamically wraps repeated headers, lays out lyrics in two equal columns, and embeds script-appropriate Noto CJK or Roboto faces on demand. The production editor, preview controls and download workflow remain for later phases.
 
 ## Technology
 
@@ -40,6 +40,6 @@ React, Vite, strict TypeScript, Tailwind CSS 4, pdfmake, PDF.js (`pdfjs-dist`), 
 
 ## Privacy and current limits
 
-The feasibility action generates a synthetic sample in the browser. Phase 2 processing is pure TypeScript and keeps lyrics in memory; it removes only explicit Genius URL lines and preserves ambiguous text. It does not scrape or fetch lyrics. The prototype uses pdfmake’s bundled Roboto font for Latin text only; it is not the final approved PDF font and does not cover Hangul/CJK. Manrope is used for interface text. Aptos redistribution and embedding rights remain unresolved, and no Aptos font file is included. Font notices are in `docs/THIRD_PARTY_NOTICES.md` and copied to `public/licenses/`. Production PDF rendering still supports only the Phase 1 A4 prototype; Phase 2 paper presets are data and validation only.
+The feasibility action generates a synthetic sample in the browser. Processing is pure TypeScript and keeps lyrics in memory; it removes only explicit Genius URL lines, preserves ambiguous text, and does not fetch lyrics. PDF output uses embedded Roboto for Latin/Filipino text and on-demand Noto Sans CJK faces for Korean, Japanese, Simplified Chinese and Traditional Chinese. Shared Han-only text defaults to Japanese; canonical-equivalent combining sequences may be composed by PDF font shaping/extraction. Manrope is used for interface text. Aptos redistribution and embedding rights remain unresolved, and no Aptos font file is included. Font notices are in `docs/THIRD_PARTY_NOTICES.md` and copied to `public/licenses/`.
 
 See `docs/TECHNICAL_DECISIONS.md` for font findings and `docs/PROJECT_SPECIFICATION.md` for the complete product baseline.

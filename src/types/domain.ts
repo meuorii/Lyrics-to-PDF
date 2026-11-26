@@ -87,6 +87,7 @@ export type PdfGenerationErrorCode =
   | 'font-loading'
   | 'unsupported-glyph'
   | 'unsafe-layout'
+  | 'pagination-failed'
   | 'generation-failed'
   | 'inspection-failed';
 

@@ -1,13 +1,13 @@
 # Lyrics to PDF — Seven-Phase Implementation Roadmap
 
-The original 14-page specification is authoritative. The percentages total 100%. Phases 1–3 are complete; only Phase 4 is ready to begin. Later phases remain NOT STARTED.
+The original 14-page specification is authoritative. The percentages total 100%. Phases 1–4 are complete; Phase 5 is next. Later phases remain NOT STARTED.
 
 ## Progress
 
-- Completed phases: 3 / 7
-- Weighted implementation progress: 44%
-- Completed phases: Phase 1 — Technical Foundation & Feasibility; Phase 2 — Lyrics Processing & Validation Engine; Phase 3 — Core PDF Generation Engine
-- Next phase: Phase 4 — Advanced Pagination & Multilingual Support — NOT STARTED; READY FOR IMPLEMENTATION
+- Completed phases: 4 / 7
+- Weighted implementation progress: 60%
+- Completed phases: Phase 1 — Technical Foundation & Feasibility; Phase 2 — Lyrics Processing & Validation Engine; Phase 3 — Core PDF Generation Engine; Phase 4 — Advanced Pagination & Multilingual Support
+- Next phase: Phase 5 — UI/UX & Design System — NOT STARTED; READY FOR IMPLEMENTATION
 
 ## Phase 1 — Technical Foundation & Feasibility (12%)
 
@@ -99,9 +99,11 @@ The original 14-page specification is authoritative. The percentages total 100%.
 
 **Out of scope:** UI preview controls and external font services.
 
-**Completion checklist:** NOT STARTED — choose script assets; verify licensing; implement fallback; exercise long/mixed-script layouts; record size/performance findings.
+**Completion checklist:** COMPLETE — bundled and verified licensed script assets; implemented deterministic script/glyph fallback and on-demand same-origin loading; implemented Unicode-aware wrapping and boundary-aware pagination; exercised mixed-script, long-header, section/column/page boundary and custom-paper layouts; recorded asset size and performance evidence in the implementation log; ran required verification.
 
-**Status:** NOT STARTED.
+**Verification:** See the 2026-11-26 Phase 4 entry in `docs/IMPLEMENTATION_LOG.md`.
+
+**Status:** COMPLETE.
 
 ## Phase 5 — UI/UX & Design System (18%)
 
