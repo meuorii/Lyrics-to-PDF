@@ -1,15 +1,18 @@
 import { expect, test } from '@playwright/test';
 
-test('application shell renders and generates a real PDF in the browser', async ({ page }) => {
+test('production workspace renders and generates a real PDF in the browser', async ({ page }) => {
   const runtimeErrors: string[] = [];
   page.on('pageerror', (error) => runtimeErrors.push(error.message));
 
   await page.goto('/');
   await expect(page.getByRole('heading', { name: 'Lyrics to PDF' })).toBeVisible();
-  await expect(page.getByText('Core PDF engine')).toBeVisible();
-  await page.getByRole('button', { name: 'Generate PDF fixture' }).click();
-  await expect(page.getByRole('status')).toContainText('Generated PDF');
-  await expect(page.getByRole('status')).toContainText(/\d+ bytes/);
+  await expect(page.getByLabel('Song title')).toBeVisible();
+  await page.getByLabel('Song title').fill('Browser workspace');
+  await page.getByLabel('Artist').fill('Workspace test');
+  await page.getByRole('textbox', { name: 'Lyrics' }).fill('The real production form creates this document.');
+  await page.getByRole('button', { name: 'Generate PDF' }).click();
+  await expect(page.getByLabel('PDF document status')).toContainText('PDF generated');
+  await expect(page.locator('.document-facts')).toContainText(/\d+(\.\d+)?\s+KB|\d+ bytes/);
   expect(runtimeErrors).toEqual([]);
 });
 

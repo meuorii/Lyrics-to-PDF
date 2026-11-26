@@ -4,7 +4,9 @@ A client-side foundation for a focused utility that formats user-provided song l
 
 ## Current status
 
-Phases 1–4 — Technical Foundation & Feasibility, Lyrics Processing & Validation Engine, Core PDF Generation Engine, and Advanced Pagination & Multilingual Support — are complete (4/7 phases, 60%). The browser PDF generator supports the nine standard sizes and validated custom portrait paper, dynamically wraps repeated headers, lays out lyrics in two equal columns, and embeds script-appropriate Noto CJK or Roboto faces on demand. The production editor, preview controls and download workflow remain for later phases.
+Phases 1–5 are complete (5/7 phases, 78%). The browser PDF generator supports nine standard paper sizes and validated custom portrait dimensions, wraps repeated headers, lays out lyrics in two equal columns, and loads script-appropriate Noto CJK or Roboto faces on demand. The responsive workspace collects title, artist, lyrics, and paper settings; validates input; and generates a real PDF snapshot. The generated file's metadata is shown in the workspace. PDF page preview/navigation and downloading are Phase 6 and are not available yet.
+
+The editor includes standard paper presets and custom dimensions in millimeters or inches. Lyrics and form data remain in memory only. Invalid input and recoverable generation errors preserve the user's text. See the roadmap for Phase 6 scope and the implementation log for viewport and browser evidence.
 
 ## Technology
 
@@ -40,6 +42,8 @@ React, Vite, strict TypeScript, Tailwind CSS 4, pdfmake, PDF.js (`pdfjs-dist`), 
 
 ## Privacy and current limits
 
-The feasibility action generates a synthetic sample in the browser. Processing is pure TypeScript and keeps lyrics in memory; it removes only explicit Genius URL lines, preserves ambiguous text, and does not fetch lyrics. PDF output uses embedded Roboto for Latin/Filipino text and on-demand Noto Sans CJK faces for Korean, Japanese, Simplified Chinese and Traditional Chinese. Shared Han-only text defaults to Japanese; canonical-equivalent combining sequences may be composed by PDF font shaping/extraction. Manrope is used for interface text. Aptos redistribution and embedding rights remain unresolved, and no Aptos font file is included. Font notices are in `docs/THIRD_PARTY_NOTICES.md` and copied to `public/licenses/`.
+Processing is pure TypeScript and keeps lyrics in memory; it removes only explicit Genius URL lines, preserves ambiguous text, and does not fetch lyrics. PDF output uses embedded Roboto for Latin/Filipino text and on-demand Noto Sans CJK faces for Korean, Japanese, Simplified Chinese and Traditional Chinese. Shared Han-only text defaults to Japanese; canonical-equivalent combining sequences may be composed by PDF font shaping/extraction. Manrope is used for interface text. Aptos redistribution and embedding rights remain unresolved, and no Aptos font file is included. Font notices are in `docs/THIRD_PARTY_NOTICES.md` and copied to `public/licenses/`.
+
+Phase 5 intentionally displays a document summary instead of rendering PDF pages. Preview controls and Download are visible but disabled until Phase 6 connects the snapshot to PDF.js and a same-byte download flow.
 
 See `docs/TECHNICAL_DECISIONS.md` for font findings and `docs/PROJECT_SPECIFICATION.md` for the complete product baseline.
