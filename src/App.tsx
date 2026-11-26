@@ -1,15 +1,10 @@
 import { useRef, useState, type FormEvent } from 'react';
 import {
-  CheckCircle2,
-  ChevronLeft,
-  ChevronRight,
-  Download,
   FileText,
   LoaderCircle,
   RotateCcw,
-  ZoomIn,
-  ZoomOut,
 } from 'lucide-react';
+import PdfPreview from './features/preview/PdfPreview';
 import { processSongInput } from './features/lyrics/validate-input';
 import { PAPER_SIZES } from './features/paper/paper-sizes';
 import { convertDimensionUnit, formatMillimetersInUnit, parseDimensionMillimeters } from './features/workspace/paper-units';
@@ -83,16 +78,6 @@ function formatBytes(bytes: number): string {
   return bytes < 1024 ? `${bytes} bytes` : `${(bytes / 1024).toFixed(1)} KB`;
 }
 
-function pageLabel(pageCount: number): string {
-  return `${pageCount} ${pageCount === 1 ? 'page' : 'pages'}`;
-}
-
-function paperLabel(snapshot: PdfSnapshot): string {
-  return snapshot.paper.size === 'Custom'
-    ? `${formatMillimetersInUnit(snapshot.paper.width, 'mm')} × ${formatMillimetersInUnit(snapshot.paper.height, 'mm')} mm`
-    : snapshot.paper.size;
-}
-
 function generationMessage(error: unknown): string {
   if (error instanceof PdfGenerationError && error.code === 'unsupported-glyph') {
     return 'A required character is unsupported. Review the text and try again.';
@@ -116,15 +101,18 @@ export default function App() {
   const [generation, setGeneration] = useState<GenerationState>({ status: 'idle' });
   const [snapshot, setSnapshot] = useState<PdfSnapshot | null>(null);
   const [snapshotIdentity, setSnapshotIdentity] = useState<string | null>(null);
+  const [snapshotNeedsRefresh, setSnapshotNeedsRefresh] = useState(false);
+  const [generationBusy, setGenerationBusy] = useState(false);
   const [warnings, setWarnings] = useState<string[]>([]);
   const revisionRef = useRef(0);
   const requestRef = useRef(0);
+  const generationBusyRef = useRef(false);
   const titleInputRef = useRef<HTMLInputElement>(null);
 
   const currentIdentity = inputIdentity(form);
-  const isStale = snapshot !== null && snapshotIdentity !== currentIdentity;
+  const isStale = snapshot !== null && (snapshotIdentity !== currentIdentity || snapshotNeedsRefresh);
   const fieldIssues = (field: ValidationIssue['field']) => issues.filter((issue) => issue.field === field);
-  const isLoading = generation.status === 'loading';
+  const isLoading = generationBusy;
 
   function updateForm<K extends keyof FormState>(key: K, value: FormState[K], issueField?: ValidationIssue['field']) {
     requestRef.current += 1;
@@ -148,11 +136,8 @@ export default function App() {
 
   function changeUnit(unit: MeasurementUnit) {
     if (unit === form.unit) return;
-    requestRef.current += 1;
-    revisionRef.current += 1;
     setIssues((current) => current.filter((issue) => issue.field !== 'paper'));
     setWarnings([]);
-    setGeneration((current) => current.status === 'loading' ? { status: 'idle' } : current);
     setForm((current) => ({
       ...current,
       unit,
@@ -167,7 +152,7 @@ export default function App() {
 
   async function handleGenerate(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (isLoading) return;
+    if (generationBusyRef.current) return;
     const input: SongProcessingInput = {
       title: form.title,
       artist: form.artist,
@@ -194,16 +179,23 @@ export default function App() {
     const sourceRevision = revisionRef.current;
     const sourceIdentity = currentIdentity;
     setGeneration({ status: 'loading' });
+    generationBusyRef.current = true;
+    setGenerationBusy(true);
+    if (snapshot && snapshotIdentity === sourceIdentity) setSnapshotNeedsRefresh(true);
     try {
       const { generatePdf } = await import('./features/pdf/generate-pdf');
       const generated = await generatePdf(processed.data);
       if (requestRef.current !== requestId || revisionRef.current !== sourceRevision) return;
       setSnapshot(generated);
       setSnapshotIdentity(sourceIdentity);
+      setSnapshotNeedsRefresh(false);
       setGeneration({ status: 'idle' });
     } catch (error) {
       if (requestRef.current !== requestId || revisionRef.current !== sourceRevision) return;
       setGeneration({ status: 'error', message: generationMessage(error) });
+    } finally {
+      generationBusyRef.current = false;
+      setGenerationBusy(false);
     }
   }
 
@@ -220,6 +212,7 @@ export default function App() {
     setWarnings([]);
     setSnapshot(null);
     setSnapshotIdentity(null);
+    setSnapshotNeedsRefresh(false);
     setGeneration({ status: 'idle' });
     requestAnimationFrame(() => titleInputRef.current?.focus());
   }
@@ -383,68 +376,16 @@ export default function App() {
           </section>
 
           <section className="workspace-panel preview-panel" aria-labelledby="preview-heading" data-testid="preview-panel">
-            <div className="panel-heading preview-heading">
-              <h2 id="preview-heading">PDF preview</h2>
-              <p>{snapshot && !isStale ? 'Your latest document' : 'A print-ready document, made in your browser'}</p>
-            </div>
-
-            <div className="preview-canvas">
-              {generation.status === 'loading' ? (
-                <div className="preview-state" aria-label="Creating PDF">
-                  <LoaderCircle className="state-icon spin-icon" size={28} strokeWidth={1.6} aria-hidden="true" />
-                  <h3>Generating your PDF…</h3>
-                  <p>Preparing fonts and formatting your lyrics. Multilingual documents may take a little longer.</p>
-                </div>
-              ) : generation.status === 'error' ? (
-                <div className="preview-state error-state">
-                  {isStale && <p className="stale-message" role="status">Your document has changed. Generate your PDF again to apply your latest changes.</p>}
-                  <h3>Unable to generate PDF</h3>
-                  <p>{generation.message}</p>
-                  <p>Your original text is still in the editor.</p>
-                </div>
-              ) : snapshot ? (
-                <div className="document-result">
-                  {isStale && <div className="stale-message" role="status"><strong>Your document has changed</strong><span>Generate your PDF again to apply your latest changes.</span></div>}
-                  <span className="result-icon" aria-hidden="true"><CheckCircle2 size={25} strokeWidth={1.8} /></span>
-                  <h3>{isStale ? 'Previous PDF' : 'PDF generated'}</h3>
-                  <p className="result-filename">{snapshot.filename}</p>
-                  <dl className="document-facts">
-                    <div><dt>Pages</dt><dd>{pageLabel(snapshot.pageCount)}</dd></div>
-                    <div><dt>Paper</dt><dd>{paperLabel(snapshot)}</dd></div>
-                    <div><dt>Orientation</dt><dd>Portrait</dd></div>
-                    <div><dt>File size</dt><dd>{formatBytes(snapshot.blob.size)}</dd></div>
-                  </dl>
-                  <p className="preview-unavailable">PDF preview is not available yet.</p>
-                </div>
-              ) : (
-                <div className="preview-state empty-state">
-                  <span className="state-icon" aria-hidden="true"><FileText size={26} strokeWidth={1.5} /></span>
-                  <h3>No document yet</h3>
-                  <p>Add a title, artist and lyrics, then generate your PDF.</p>
-                </div>
-              )}
-            </div>
-
-            <div className="preview-toolbar" role="toolbar" aria-label="Preview controls">
-              <div className="toolbar-group" aria-label="Page navigation">
-                <button type="button" aria-label="Previous page" disabled><ChevronLeft size={17} aria-hidden="true" /></button>
-                <span className="toolbar-readout">{snapshot ? `— / ${snapshot.pageCount}` : '— / —'}</span>
-                <button type="button" aria-label="Next page" disabled><ChevronRight size={17} aria-hidden="true" /></button>
-              </div>
-              <div className="toolbar-group" aria-label="Zoom controls">
-                <button type="button" aria-label="Zoom out" disabled><ZoomOut size={16} aria-hidden="true" /></button>
-                <span className="toolbar-readout">—%</span>
-                <button type="button" aria-label="Zoom in" disabled><ZoomIn size={16} aria-hidden="true" /></button>
-              </div>
-              <button className="download-placeholder" type="button" aria-label="Download PDF" disabled>
-                <Download size={15} aria-hidden="true" /><span>Download</span>
-              </button>
-            </div>
-            <p className="toolbar-note">Preview and download will be available here.</p>
+            <PdfPreview
+              snapshot={snapshot}
+              stale={isStale}
+              generationStatus={generation.status}
+              generationError={generation.status === 'error' ? generation.message : undefined}
+            />
             <div className="sr-only" role="status" aria-live="polite" aria-atomic="true" aria-label="PDF document status">
               {generation.status === 'loading' && 'Creating PDF.'}
               {generation.status === 'error' && 'PDF creation failed. Your input is preserved.'}
-              {generation.status === 'idle' && snapshot && !isStale && `PDF generated. ${pageLabel(snapshot.pageCount)}. ${formatBytes(snapshot.blob.size)}.`}
+              {generation.status === 'idle' && snapshot && !isStale && `PDF generated. ${snapshot.pageCount} ${snapshot.pageCount === 1 ? 'page' : 'pages'}. ${formatBytes(snapshot.blob.size)}.`}
               {generation.status === 'idle' && isStale && 'PDF is out of date.'}
               {generation.status === 'idle' && !snapshot && 'No PDF has been generated.'}
             </div>

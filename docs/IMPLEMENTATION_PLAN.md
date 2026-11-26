@@ -1,13 +1,13 @@
 # Lyrics to PDF — Seven-Phase Implementation Roadmap
 
-The original 14-page specification is authoritative. The percentages total 100%. Phases 1–5 are complete; Phase 6 is next. Phases 6–7 remain NOT STARTED.
+The original 14-page specification is authoritative. The percentages total 100%. Phases 1–6 are complete; Phase 7 is next and ready.
 
 ## Progress
 
-- Completed phases: 5 / 7
-- Weighted implementation progress: 78%
-- Completed phases: Phase 1 — Technical Foundation & Feasibility; Phase 2 — Lyrics Processing & Validation Engine; Phase 3 — Core PDF Generation Engine; Phase 4 — Advanced Pagination & Multilingual Support; Phase 5 — UI/UX & Design System
-- Next phase: Phase 6 — PDF Preview, Download & Integration — NOT STARTED; READY FOR IMPLEMENTATION
+- Completed phases: 6 / 7
+- Weighted implementation progress: 92%
+- Completed phases: Phase 1 — Technical Foundation & Feasibility; Phase 2 — Lyrics Processing & Validation Engine; Phase 3 — Core PDF Generation Engine; Phase 4 — Advanced Pagination & Multilingual Support; Phase 5 — UI/UX & Design System; Phase 6 — PDF Preview, Download & Integration
+- Next phase: Phase 7 — Refinement, Testing & Release Readiness — READY FOR IMPLEMENTATION
 
 ## Phase 1 — Technical Foundation & Feasibility (12%)
 
@@ -135,13 +135,21 @@ The original 14-page specification is authoritative. The percentages total 100%.
 
 **Dependencies:** Phases 2–5.
 
-**Acceptance criteria:** Playwright exercises generate, inspect, navigate, zoom, edit/stale, regenerate, download, failure/retry, reset and same-byte integrity without runtime errors or resource leaks.
+**Acceptance criteria:** PDF.js loads locally and lazily from the same installed version as its worker; the current snapshot renders to a canvas and selectable text layer; page navigation, 96 CSS px / 72 pt reference scale, fit-page/fit-width, 50–200% zoom in 25% steps, resize, and fullscreen work; output resolution is bounded. Preview operations reuse the same byte snapshot. Download remains disabled while stale, generating, loading or rendering and downloads that snapshot under its safe filename. Revisions prevent out-of-order results; replacement, failure, reset and unmount cancel/dispose resources. E2E verifies actual pixels, page text, multipage controls, stale blocking, fallback fullscreen, real browser download bytes, reset, and lazy worker loading.
 
 **Out of scope:** backend, cloud storage, online lyrics retrieval.
 
-**Completion checklist:** NOT STARTED — integrate snapshot; verify worker in build; add end-to-end lifecycle checks.
+**Completion checklist:**
 
-**Status:** NOT STARTED.
+- [x] Load the local PDF.js runtime and matching worker on demand.
+- [x] Render actual pages and selectable text from the retained snapshot; add bounded scale, navigation, fit and fullscreen controls.
+- [x] Gate download on current rendered state and download the same snapshot bytes under its safe filename.
+- [x] Dispose render, text-layer, document and temporary URL resources across replacement, reset and unmount.
+- [x] Verify Chromium behavior, exact download bytes, responsive preview, and all required checks.
+
+**Verification:** See the 2026-11-26 Phase 6 entry in `docs/IMPLEMENTATION_LOG.md`.
+
+**Status:** COMPLETE.
 
 ## Phase 7 — Refinement, Testing & Release Readiness (8%)
 
@@ -157,6 +165,6 @@ The original 14-page specification is authoritative. The percentages total 100%.
 
 **Out of scope:** new product capabilities absent from the approved specification.
 
-**Completion checklist:** NOT STARTED — run full quality matrix; review output; confirm licensing/privacy notices; prepare release evidence.
+**Completion checklist:** NOT STARTED — review the full quality matrix; verify accessibility, performance, licensing/privacy notices, supported limits and static deployment evidence.
 
-**Status:** NOT STARTED.
+**Status:** READY.

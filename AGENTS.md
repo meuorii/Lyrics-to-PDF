@@ -20,7 +20,7 @@ React, Vite, strict TypeScript, Tailwind CSS, pdfmake, PDF.js (`pdfjs-dist`), Lu
 
 ## Phase strategy and scope
 
-There are seven weighted phases: technical foundation 12%; lyrics processing 12%; core PDF engine 20%; pagination and multilingual support 16%; interface/design system 18%; preview/download integration 14%; refinement/release 8%. Implement only the current phase. Phases 1–5 are complete (5/7, 78%); Phase 6 — PDF Preview, Download & Integration — is next and ready. Follow the roadmap acceptance criteria before changing status.
+There are seven weighted phases: technical foundation 12%; lyrics processing 12%; core PDF engine 20%; pagination and multilingual support 16%; interface/design system 18%; preview/download integration 14%; refinement/release 8%. Implement only the current phase. Phases 1–6 are complete (6/7, 92%); Phase 7 — Refinement, Testing & Release Readiness — is next and ready. Follow the roadmap acceptance criteria before changing status.
 
 ## Coding conventions
 
@@ -32,7 +32,7 @@ There are seven weighted phases: technical foundation 12%; lyrics processing 12%
 - Prefer the smallest implementation that fully satisfies the current phase. Avoid unused placeholders and speculative abstractions.
 - Keep lyrics in memory only. Do not add network submission, storage, analytics, or secrets.
 - `src/features/lyrics/` owns pure normalization, section recognition, and input validation; `src/features/paper/` owns presets, unit conversion, dimension resolution, and foundational geometry. `processSongInput` is the generation boundary; `src/features/pdf/` owns PDF layout, fonts, filenames, and generation. The PDF renderer embeds Roboto for Latin text and loads licensed Noto Sans CJK faces on demand for supported CJK scripts; it uses deterministic Japanese as the ambiguous Han-only default.
-- `src/App.tsx` owns the Phase 5 responsive editor, in-memory form state, validation/generation lifecycle, and snapshot summary. `src/features/workspace/paper-units.ts` owns UI display-unit conversion. Phase 6 owns PDF.js preview/navigation, download, and preview-resource lifecycle; the Phase 5 summary and disabled toolbar are not the final preview.
+- `src/App.tsx` owns the responsive editor, in-memory form state, validation/generation lifecycle, and retained snapshot. `src/features/workspace/paper-units.ts` owns UI display-unit conversion. `src/features/preview/` owns the lazy PDF.js runtime, actual canvas/text-layer preview, controls, download, and preview-resource lifecycle.
 
 ## Skills
 

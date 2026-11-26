@@ -31,19 +31,19 @@ test('workspace labels required fields and reports validation without losing inp
 test('custom paper controls convert units and generate the unchanged physical dimensions', async ({ page }) => {
   await page.goto('/');
   await page.getByLabel('Paper size').selectOption('Custom');
-  await expect(page.getByLabel('Width')).toHaveValue('210');
-  await expect(page.getByLabel('Height')).toHaveValue('297');
+  await expect(page.getByRole('spinbutton', { name: 'Width' })).toHaveValue('210');
+  await expect(page.getByRole('spinbutton', { name: 'Height' })).toHaveValue('297');
   await page.getByLabel('Song title').fill('Unit switch');
   await page.getByLabel('Artist').fill('Workspace test');
   await page.getByRole('textbox', { name: 'Lyrics' }).fill('A lyric with unchanged paper dimensions.');
   await page.getByLabel('Unit').selectOption('in');
-  await expect(page.getByLabel('Width')).toHaveValue('8.2677');
-  await expect(page.getByLabel('Height')).toHaveValue('11.6929');
+  await expect(page.getByRole('spinbutton', { name: 'Width' })).toHaveValue('8.2677');
+  await expect(page.getByRole('spinbutton', { name: 'Height' })).toHaveValue('11.6929');
   await page.getByRole('button', { name: 'Generate PDF' }).click();
   await expect(page.locator('.document-facts')).toContainText('210 × 297 mm');
   await page.getByLabel('Unit').selectOption('mm');
-  await expect(page.getByLabel('Width')).toHaveValue('210');
-  await expect(page.getByLabel('Height')).toHaveValue('297');
+  await expect(page.getByRole('spinbutton', { name: 'Width' })).toHaveValue('210');
+  await expect(page.getByRole('spinbutton', { name: 'Height' })).toHaveValue('297');
   await expect(page.getByText('Your document has changed')).toBeHidden();
 });
 
@@ -60,13 +60,15 @@ test('valid input creates a real snapshot, marks edits stale, regenerates, and r
 
   await expect(page.getByLabel('PDF document status')).toContainText('PDF generated');
   await expect(page.getByLabel('PDF document status')).toContainText('1 page');
-  await expect(page.getByRole('button', { name: 'Download PDF' })).toBeDisabled();
-  await expect(page.getByText('PDF preview is not available yet.')).toBeVisible();
+  await expect(page.getByLabel('PDF preview status')).toContainText('Preview ready');
+  await expect(page.getByRole('button', { name: 'Download PDF' })).toBeEnabled();
+  await expect(page.getByTestId('pdf-text-layer')).toContainText('Light along the window frame.');
   await page.screenshot({ path: 'test-results/phase5-generated.png', fullPage: true });
 
   await page.getByLabel('Song title').fill('Paper Lanterns, revised');
   await expect(page.getByText('Your document has changed')).toBeVisible();
-  await expect(page.getByText('Generate your PDF again to apply your latest changes.')).toBeVisible();
+  await expect(page.getByText('Update your PDF before downloading.')).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Download PDF' })).toBeDisabled();
   await page.screenshot({ path: 'test-results/phase5-stale.png', fullPage: true });
   await page.getByRole('button', { name: 'Update PDF' }).click();
   await expect(page.getByLabel('PDF document status')).toContainText('PDF generated');
@@ -111,8 +113,8 @@ test('custom paper dimensions reach generation with their selected unit', async 
   await page.getByRole('textbox', { name: 'Lyrics' }).fill('A lyric on custom paper.');
   await page.getByLabel('Paper size').selectOption('Custom');
   await page.getByLabel('Unit').selectOption('in');
-  await page.getByLabel('Width').fill('8.5');
-  await page.getByLabel('Height').fill('11');
+  await page.getByRole('spinbutton', { name: 'Width' }).fill('8.5');
+  await page.getByRole('spinbutton', { name: 'Height' }).fill('11');
   await page.getByRole('button', { name: 'Generate PDF' }).click();
   await expect(page.getByLabel('PDF document status')).toContainText('PDF generated');
   await expect(page.locator('.document-facts')).toContainText('215.9 × 279.4 mm');
@@ -139,11 +141,11 @@ test('invalid custom paper is reported before generation and focuses the dimensi
   await page.getByLabel('Artist').fill('Workspace test');
   await page.getByRole('textbox', { name: 'Lyrics' }).fill('Keep this text.');
   await page.getByLabel('Paper size').selectOption('Custom');
-  await page.getByLabel('Width').fill('10');
-  await page.getByLabel('Height').fill('10');
+  await page.getByRole('spinbutton', { name: 'Width' }).fill('10');
+  await page.getByRole('spinbutton', { name: 'Height' }).fill('10');
   await page.getByRole('button', { name: 'Generate PDF' }).click();
   await expect(page.getByRole('alert')).toContainText('Paper width is too small');
-  await expect(page.getByLabel('Width')).toBeFocused();
+  await expect(page.getByRole('spinbutton', { name: 'Width' })).toBeFocused();
   await expect(page.getByRole('textbox', { name: 'Lyrics' })).toHaveValue('Keep this text.');
   await expect(page.getByRole('heading', { name: 'No document yet' })).toBeVisible();
 });
@@ -154,13 +156,13 @@ test('empty custom dimensions stay empty across unit changes and explain the mis
   await page.getByLabel('Artist').fill('Workspace test');
   await page.getByRole('textbox', { name: 'Lyrics' }).fill('Keep this text.');
   await page.getByLabel('Paper size').selectOption('Custom');
-  await page.getByLabel('Width').fill('');
-  await expect(page.getByLabel('Width')).toHaveValue('');
+  await page.getByRole('spinbutton', { name: 'Width' }).fill('');
+  await expect(page.getByRole('spinbutton', { name: 'Width' })).toHaveValue('');
   await page.getByLabel('Unit').selectOption('in');
-  await expect(page.getByLabel('Width')).toHaveValue('');
+  await expect(page.getByRole('spinbutton', { name: 'Width' })).toHaveValue('');
   await page.getByRole('button', { name: 'Generate PDF' }).click();
   await expect(page.getByRole('alert')).toContainText('Enter a custom paper width.');
-  await expect(page.getByLabel('Width')).toBeFocused();
+  await expect(page.getByRole('spinbutton', { name: 'Width' })).toBeFocused();
   await expect(page.getByRole('textbox', { name: 'Lyrics' })).toHaveValue('Keep this text.');
 });
 
