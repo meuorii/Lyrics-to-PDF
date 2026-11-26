@@ -4,7 +4,7 @@ import { create as createFont } from 'fontkit';
 import { describe, expect, it } from 'vitest';
 import type { ResolvedFontRun } from '../../src/features/pdf/font-fallback';
 import { wrapResolvedText } from '../../src/features/pdf/text-layout';
-import { getPdfFontMetrics } from '../../src/features/pdf/font-registry';
+import { getPdfFontMetrics, type FontFaceMetrics } from '../../src/features/pdf/font-registry';
 
 describe('PDF Unicode text layout', () => {
   it('wraps Latin words and splits long unbroken tokens without dropping characters', () => {
@@ -19,9 +19,19 @@ describe('PDF Unicode text layout', () => {
     expect(tokenLines.map((line) => line.runs.map((run) => run.text).join('')).join('')).toBe(token[0]!.text);
   });
 
+  it('reserves the embedded renderer line height separately from visual glyph placement', () => {
+    const face = getPdfFontMetrics().regular;
+    const lines = wrapResolvedText([{ text: 'a', font: 'Roboto', face, bold: false }], 80, 12);
+    const rendererLineHeight = ((face.ascent - face.descent) / face.unitsPerEm) * 12;
+
+    expect(lines[0]!.heightPt).toBe(12);
+    expect(lines[0]!.paginationHeightPt).toBeCloseTo(rendererLineHeight, 6);
+    expect(lines[0]!.paginationHeightPt).toBeGreaterThan(lines[0]!.heightPt);
+  });
+
   it('wraps CJK at Unicode line-break opportunities and preserves grapheme clusters', async () => {
     const bytes = await readFile(join(process.cwd(), 'public/fonts/pdf/NotoSansJP-Regular.otf'));
-    const face = createFont(bytes);
+    const face = createFont(bytes) as FontFaceMetrics;
     const text = '日本語、かなカナ漢字'.repeat(8);
     const lines = wrapResolvedText([{ text, font: 'NotoJP', face, bold: false }], 80, 12);
     expect(lines.length).toBeGreaterThan(1);

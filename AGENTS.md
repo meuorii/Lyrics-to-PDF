@@ -20,7 +20,7 @@ React, Vite, strict TypeScript, Tailwind CSS, pdfmake, PDF.js (`pdfjs-dist`), Lu
 
 ## Phase strategy and scope
 
-There are seven weighted phases: technical foundation 12%; lyrics processing 12%; core PDF engine 20%; pagination and multilingual support 16%; interface/design system 18%; preview/download integration 14%; refinement/release 8%. Implement only the current phase. Phases 1–6 are complete (6/7, 92%); Phase 7 — Refinement, Testing & Release Readiness — is next and ready. Follow the roadmap acceptance criteria before changing status.
+There are seven weighted phases: technical foundation 12%; lyrics processing 12%; core PDF engine 20%; pagination and multilingual support 16%; interface/design system 18%; preview/download integration 14%; refinement/release 8%. Implement only the current phase. Phases 1–6 are complete (6/7, 92%); Phase 7 — Refinement, Testing & Release Readiness — is in progress. Follow the roadmap acceptance criteria before changing status.
 
 ## Coding conventions
 

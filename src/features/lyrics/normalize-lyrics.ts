@@ -1,5 +1,5 @@
 import type { LyricsSection, NormalizationWarning, NormalizedLyrics } from '../../types/domain';
-import { parseSectionLabel } from './section-labels';
+import { mergeMultilineSectionLabel, parseSectionLabel } from './section-labels';
 
 function isGeniusArtifact(line: string): boolean {
   const trimmed = line.trim();
@@ -30,11 +30,14 @@ export function normalizeLyrics(rawText: string): NormalizedLyrics {
     return result;
   }, []);
   const sections: LyricsSection[] = [];
-  for (const line of collapsed) {
-    const parsed = parseSectionLabel(line);
+  for (let index = 0; index < collapsed.length; index += 1) {
+    const line = collapsed[index]!;
+    const multiline = mergeMultilineSectionLabel(collapsed, index);
+    const parsed = parseSectionLabel(line) ?? multiline?.label ?? null;
     if (parsed) {
       while (sections.length && sections.at(-1)!.lines.at(-1) === '') sections.at(-1)!.lines.pop();
       sections.push({ label: parsed.label, lines: [] });
+      if (multiline && !parseSectionLabel(line)) index += multiline.consumed - 1;
     }
     else {
       if (!sections.length) sections.push({ label: null, lines: [] });

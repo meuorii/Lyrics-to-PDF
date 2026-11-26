@@ -3,9 +3,9 @@ import { paginateLayout, type PaginationItem } from '../../src/features/pdf/pagi
 import type { MeasuredTextLine } from '../../src/features/pdf/text-layout';
 import type { ResolvedFontRun } from '../../src/features/pdf/font-fallback';
 
-function line(text: string, heightPt = 10): MeasuredTextLine {
+function line(text: string, heightPt = 10, paginationHeightPt = heightPt): MeasuredTextLine {
   const face = { layout: (value: string) => ({ advanceWidth: value.length, bbox: { minX: 0, minY: 0, maxX: value.length, maxY: 1 } }), unitsPerEm: 1 } as unknown as ResolvedFontRun['face'];
-  return { runs: [{ text, font: 'test', face, bold: false }], widthPt: text.length, heightPt };
+  return { runs: [{ text, font: 'test', face, bold: false }], widthPt: text.length, heightPt, paginationHeightPt };
 }
 
 function rowText(items: PaginationItem[]) {
@@ -33,6 +33,42 @@ describe('continuous PDF pagination', () => {
     expect(rowText(result[0]!.columns[0].items)).toBe('previous');
     expect(rowText(result[0]!.columns[1].items)).toBe('[Chorus]|first|second');
     expect(result[0]!.columns[1].items.some((item) => item.kind === 'blank')).toBe(false);
+  });
+
+  it('uses renderer extents for fit while advancing by visual height', () => {
+    const result = paginateLayout([
+      { kind: 'line', line: line('one', 10, 14) },
+      { kind: 'line', line: line('two', 10, 14) },
+    ], 25);
+    expect(rowText(result[0]!.columns[0].items)).toBe('one|two');
+    expect(result[0]!.columns[0].usedHeightPt).toBe(20);
+  });
+
+  it('checks each renderer line against visual placement for an atomic section start', () => {
+    const result = paginateLayout([
+      { kind: 'section', label: [line('[Chorus]', 5, 7)], firstLine: line('first', 10, 13), separationPt: 5 },
+    ], 25);
+    expect(rowText(result[0]!.columns[0].items)).toBe('[Chorus]|first');
+    expect(result[0]!.columns[0].usedHeightPt).toBe(15);
+    expect(result[0]!.columns[0].requiredHeightPt).toBe(18);
+  });
+
+  it('moves a section start if any reserved renderer extent exceeds the column', () => {
+    const result = paginateLayout([
+      { kind: 'line', line: line('prior', 10) },
+      { kind: 'section', label: [line('[Bridge]', 5, 7)], firstLine: line('first', 10, 16), separationPt: 5 },
+    ], 25);
+    expect(rowText(result[0]!.columns[0].items)).toBe('prior');
+    expect(rowText(result[0]!.columns[1].items)).toBe('[Bridge]|first');
+  });
+
+  it('moves every heading line and its first lyric together when only the heading would fit', () => {
+    const result = paginateLayout([
+      { kind: 'line', line: line('prior', 10) },
+      { kind: 'section', label: [line('[Instrumental', 5), line('Break]', 5)], firstLine: line('first lyric', 5, 10), separationPt: 0 },
+    ], 20);
+    expect(rowText(result[0]!.columns[0].items)).toBe('prior');
+    expect(rowText(result[0]!.columns[1].items)).toBe('[Instrumental|Break]|first lyric');
   });
 
   it('preserves internal stanza spacing and drops a separator that would be stranded at the boundary', () => {

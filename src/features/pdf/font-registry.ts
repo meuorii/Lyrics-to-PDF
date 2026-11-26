@@ -7,7 +7,8 @@ import { PDF_LAYOUT } from './layout-config';
 import type { PdfFontScript } from './font-fallback';
 
 export const PDF_FONT_FAMILY = PDF_LAYOUT.fontFamily;
-export type FontFaceMetrics = Font;
+// fontkit exposes the vertical metrics consumed by pdfmake at runtime, but omits them from its public type.
+export type FontFaceMetrics = Font & { ascent: number; descent: number };
 export type PdfFontFaces = { regular: FontFaceMetrics; bold: FontFaceMetrics; family: string };
 export type PdfFontRegistry = { latin: PdfFontFaces } & Partial<Record<Exclude<PdfFontScript, 'latin'>, PdfFontFaces>>;
 
@@ -36,7 +37,7 @@ function getLatinMetrics(): FontMetrics {
   const regular = fontFiles['Roboto-Regular.ttf'];
   const bold = fontFiles['Roboto-Medium.ttf'];
   if (!regular || !bold) throw new Error('Required embedded Roboto faces are missing.');
-  latinMetrics = { regular: createFont(decodeFont(regular)), bold: createFont(decodeFont(bold)) };
+  latinMetrics = { regular: createFont(decodeFont(regular)) as FontFaceMetrics, bold: createFont(decodeFont(bold)) as FontFaceMetrics };
   return latinMetrics;
 }
 
@@ -77,8 +78,8 @@ async function loadScript(script: Exclude<PdfFontScript, 'latin'>): Promise<PdfF
   const promise = (async () => {
     const [regularName, boldName] = FONT_FILES[script];
     const [regularBytes, boldBytes] = await Promise.all([fetchFont(regularName), fetchFont(boldName)]);
-    const regular = createFont(regularBytes);
-    const bold = createFont(boldBytes);
+    const regular = createFont(regularBytes) as FontFaceMetrics;
+    const bold = createFont(boldBytes) as FontFaceMetrics;
     const family = 'Noto' + script.toUpperCase();
     pdfMake.addVirtualFileSystem({
       [regularName]: toBase64(regularBytes),

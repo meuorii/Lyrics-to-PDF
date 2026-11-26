@@ -5,6 +5,7 @@ export type MeasuredTextLine = {
   runs: ResolvedFontRun[];
   widthPt: number;
   heightPt: number;
+  paginationHeightPt: number;
 };
 
 type GraphemeRun = ResolvedFontRun;
@@ -22,17 +23,20 @@ function mergeGraphemes(graphemes: GraphemeRun[]): ResolvedFontRun[] {
 function lineMetrics(runs: ResolvedFontRun[], fontSizePt: number, lineHeight: number): MeasuredTextLine {
   let widthPt = 0;
   let heightPt = fontSizePt * lineHeight;
+  let paginationHeightPt = fontSizePt * lineHeight;
   for (const run of runs) {
     const layout = run.face.layout(run.text);
     widthPt += (layout.advanceWidth / run.face.unitsPerEm) * fontSizePt;
     const glyphHeight = ((layout.bbox.maxY - layout.bbox.minY) / run.face.unitsPerEm) * fontSizePt;
+    const rendererLineHeight = ((run.face.ascent - run.face.descent) / run.face.unitsPerEm) * fontSizePt * lineHeight;
     heightPt = Math.max(heightPt, glyphHeight);
+    paginationHeightPt = Math.max(paginationHeightPt, glyphHeight, rendererLineHeight);
   }
-  return { runs, widthPt, heightPt };
+  return { runs, widthPt, heightPt, paginationHeightPt };
 }
 
 function wrapParagraph(atoms: GraphemeRun[], maxWidthPt: number, fontSizePt: number, lineHeight: number): MeasuredTextLine[] {
-  if (!atoms.length) return [{ runs: [], widthPt: 0, heightPt: fontSizePt * lineHeight }];
+  if (!atoms.length) return [{ runs: [], widthPt: 0, heightPt: fontSizePt * lineHeight, paginationHeightPt: fontSizePt * lineHeight }];
   const text = atoms.map(({ text: grapheme }) => grapheme).join('');
   const graphemeEnds = new Set<number>();
   let offset = 0;

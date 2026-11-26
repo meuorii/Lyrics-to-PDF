@@ -1,13 +1,13 @@
 # Lyrics to PDF — Seven-Phase Implementation Roadmap
 
-The original 14-page specification is authoritative. The percentages total 100%. Phases 1–6 are complete; Phase 7 is next and ready.
+The original 14-page specification is authoritative. The percentages total 100%. Phases 1–6 are complete; Phase 7 release validation is in progress.
 
 ## Progress
 
 - Completed phases: 6 / 7
 - Weighted implementation progress: 92%
 - Completed phases: Phase 1 — Technical Foundation & Feasibility; Phase 2 — Lyrics Processing & Validation Engine; Phase 3 — Core PDF Generation Engine; Phase 4 — Advanced Pagination & Multilingual Support; Phase 5 — UI/UX & Design System; Phase 6 — PDF Preview, Download & Integration
-- Next phase: Phase 7 — Refinement, Testing & Release Readiness — READY FOR IMPLEMENTATION
+- Current phase: Phase 7 — Refinement, Testing & Release Readiness — IN PROGRESS (92% weighted implementation remains until its release gates pass)
 
 ## Phase 1 — Technical Foundation & Feasibility (12%)
 
@@ -165,6 +165,18 @@ The original 14-page specification is authoritative. The percentages total 100%.
 
 **Out of scope:** new product capabilities absent from the approved specification.
 
-**Completion checklist:** NOT STARTED — review the full quality matrix; verify accessibility, performance, licensing/privacy notices, supported limits and static deployment evidence.
+**Completion checklist:**
 
-**Status:** READY.
+- [x] Render and review all 14 pages of the authoritative specification; trace FR-01–FR-12, T01–T13, and page 14 release gates in `docs/RELEASE_CHECKLIST.md`.
+- [x] Reinstall from `package-lock.json`; run typecheck, lint, all 90 unit tests, the full Chromium E2E suite, and production build.
+- [x] Verify generation, preview, page controls, multilingual text, privacy boundary, and exact download bytes in Chromium 159, Firefox 159, and WebKit 27.2, against both Vite and the production build.
+- [x] Stress 1,000 synthetic lyric lines: 26 pages, first and last content visible, 9.2 seconds isolated Chromium generation plus initial preview, approximately 60 MB reported JS heap.
+- [x] Verify all eight documented Noto CJK file sizes and SHA-256 hashes; inspect Vercel static build configuration and production build output.
+- [x] Reproduce and fix the Legal renderer-height mismatch with a lyric-free regression fixture; verify the exact local input through processing, PDF generation, PDF.js extraction/page count, and snapshot Blob byte equality.
+- [x] Refine renderer-safe pagination so visual height advances the cursor and renderer extents are checked per proposed line; verify atomic section starts, canonical annotated labels, and the exact local input's extracted text and one-page Legal geometry.
+- [x] Implement the approved 48-type canonical section registry with explicit aliases and decimal numbering; verify shared annotation removal, conservative multiline handling, all-section PDF output, and new-section pagination behavior.
+- [x] Re-run the available Family input through the production editor and confirm preview/download byte equality in Chromium and Brave; run the development Chromium suite and Chromium/Firefox/WebKit matrix. The separate Ikaw raw input is not available, so its exact-input result remains unverified.
+- [ ] Complete a manual screen-reader and broader WCAG 2.2 AA audit. Existing keyboard, semantic-name, responsive, reduced-motion and focused contrast checks are automated; they do not certify assistive-technology behavior or all states.
+- [ ] After a deployment is explicitly authorized and available, run the deployed browser smoke test for worker/font paths and exact-byte download. Local production preview passes; no remote deployment was performed.
+
+**Status:** IN PROGRESS — product, document, engineering, privacy and local production evidence is recorded. Accessibility and deployed-release gates remain open; do not claim Phase 7 complete or the project 100% complete.

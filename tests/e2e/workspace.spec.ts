@@ -85,6 +85,31 @@ test('valid input creates a real snapshot, marks edits stale, regenerates, and r
   expect(runtimeErrors).toEqual([]);
 });
 
+test('production editor canonicalizes an annotated Rap heading in the Long Bond preview', async ({ page }) => {
+  await page.goto('/');
+  await page.getByLabel('Song title').fill('Synthetic Rap Regression');
+  await page.getByLabel('Artist').fill('Synthetic Test Artist');
+  await page.getByLabel('Paper size').selectOption('Long Bond');
+  await page.getByRole('textbox', { name: 'Lyrics' }).fill([
+    '[Rap Verse 2: Performer A, Performer B, Performer C & Performer D]',
+    'Unique synthetic rap lyric marker.',
+    '[Spoken-Word (Reference: Subtitle): Performer E]',
+    'Unique synthetic spoken lyric marker.',
+  ].join('\n'));
+  await page.getByRole('button', { name: 'Generate PDF' }).click();
+
+  await expect(page.getByLabel('PDF document status')).toContainText('PDF generated');
+  await expect(page.getByLabel('PDF preview status')).toContainText('Preview ready');
+  await expect(page.getByTestId('pdf-text-layer')).toContainText('[Rap Verse 2]');
+  await expect(page.getByTestId('pdf-text-layer')).toContainText('[Spoken Word]');
+  await expect(page.getByTestId('pdf-text-layer')).toContainText('Unique synthetic rap lyric marker.');
+  await expect(page.getByTestId('pdf-text-layer')).toContainText('Unique synthetic spoken lyric marker.');
+  await expect(page.getByTestId('pdf-text-layer')).not.toContainText('Performer A');
+  await expect(page.getByTestId('pdf-text-layer')).not.toContainText('Reference: Subtitle');
+  await expect(page.getByTestId('pdf-text-layer')).toContainText('Synthetic Test Artist');
+  await expect(page.getByRole('button', { name: 'Download PDF' })).toBeEnabled();
+});
+
 test('workspace stacks at small widths, splits at desktop, and never overflows horizontally', async ({ page }) => {
   await page.goto('/');
   for (const width of [320, 375, 768, 1024, 1280, 1440]) {

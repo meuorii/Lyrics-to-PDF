@@ -10,11 +10,13 @@
     "dev": "vite",
     "build": "npm run typecheck && vite build",
     "preview": "vite preview --host 127.0.0.1",
-    "lint": "eslint src tests vite.config.ts playwright.config.ts eslint.config.js",
+    "lint": "eslint src tests vite.config.ts playwright.config.ts playwright.matrix.config.ts eslint.config.js",
     "typecheck": "tsc -p tsconfig.json && tsc -p tsconfig.node.json",
     "test": "vitest run",
     "test:e2e": "node scripts/playwright.mjs test",
-    "test:e2e:install": "node scripts/playwright.mjs install chromium"
+    "test:e2e:matrix": "node scripts/playwright.mjs test --config playwright.matrix.config.ts --workers=1",
+    "test:e2e:install": "node scripts/playwright.mjs install chromium",
+    "test:e2e:install:matrix": "node scripts/playwright.mjs install firefox webkit"
   },
   "keywords": [],
   "author": "",

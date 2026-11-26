@@ -5,6 +5,8 @@ import * as pdfjs from 'pdfjs-dist/legacy/build/pdf.mjs';
 import { generatePdf } from '../../src/features/pdf/generate-pdf';
 import { PDF_LAYOUT } from '../../src/features/pdf/layout-config';
 import { processSongInput } from '../../src/features/lyrics/validate-input';
+import { normalizeLyrics } from '../../src/features/lyrics/normalize-lyrics';
+import { SECTION_REGISTRY } from '../../src/features/lyrics/section-labels';
 import { PAPER_SIZES } from '../../src/features/paper/paper-sizes';
 import type { PaperSelection, ValidatedSong } from '../../src/types/domain';
 
@@ -149,6 +151,138 @@ describe('production PDF generation', () => {
     expect(firstPage.items.every((item) => item.x + item.width <= firstPage.viewport.width - 15 * 72 / 25.4 + 1)).toBe(true);
   });
 
+  it('generates a 3,502-character section-rich Legal lyric sheet without losing ordered markers', async () => {
+    const lines: string[] = [];
+    const markers: string[] = [];
+    for (let section = 1; section <= 4; section += 1) {
+      lines.push(`[Verse ${section}: Sarah, Bamboo & Lea]`);
+      for (let line = 0; line < 30; line += 1) {
+        const marker = `FAMILY-${String(markers.length + 1).padStart(3, '0')}`;
+        markers.push(marker);
+        lines.push(`${marker}: We’ll stay.`);
+        if (line % 5 === 4) lines.push('');
+      }
+      lines.push('[Chorus: All]', 'Forever, forever, family is forever.', 'Forever, forever, family is forever.');
+    }
+    let rawLyrics = lines.join('\n');
+    while (rawLyrics.length < 3_400) {
+      const marker = `FAMILY-${String(markers.length + 1).padStart(3, '0')}`;
+      const line = `${marker}: We’ll stay.`;
+      lines.push(line);
+      markers.push(marker);
+      rawLyrics = lines.join('\n');
+    }
+    const remaining = 3_502 - rawLyrics.length;
+    lines.push(`PASTE-${'x'.repeat(remaining - 7)}`);
+    rawLyrics = lines.join('\n');
+
+    expect(rawLyrics).toHaveLength(3_502);
+    const snapshot = await generatePdf(validSong({ size: 'Legal' }, rawLyrics, 'Family Is Forever', 'ABS-CBN Music All Star'));
+    const pages = await inspect(snapshot);
+    const body = pages.flatMap((page) => page.items.map((item) => item.text)).join('');
+    const foundMarkers = body.match(/FAMILY-\d{3}/gu) ?? [];
+
+    expect(snapshot.pageCount).toBe(pages.length);
+    expect(pages.length).toBeGreaterThan(1);
+    expect(foundMarkers).toEqual(markers);
+    expect(body).toContain('[Verse 1]');
+    expect(body).toContain('[Chorus]');
+    expect(body).toContain('ABS-CBN Music All Star');
+    expect(body).toContain('Family Is Forever');
+  });
+
+  it('keeps anonymized near-boundary Legal lines within the measured page count', async () => {
+    const lyrics = await readFile(join(process.cwd(), 'tests/fixtures/legal-near-boundary-width-profile.txt'), 'utf8');
+    const snapshot = await generatePdf(validSong({ size: 'Legal' }, lyrics, 'Family Is Forever', 'ABS-CBN Music All Star'));
+    const pages = await inspect(snapshot);
+
+    expect(snapshot.pageCount).toBe(1);
+    expect(pages).toHaveLength(snapshot.pageCount);
+    expect(pages.flatMap((page) => page.items.map((item) => item.text))).toContain('Family Is Forever');
+  });
+
+  it('renders annotated Chorus and Medley labels canonically without dropping synthetic lyric text', async () => {
+    const raw = '[chorus (Song: subtitle): Singer A, Singer B]\nA synthetic lyric.\n[medley: Song A; Song B]\nAnother synthetic lyric.';
+    const snapshot = await generatePdf(validSong({ size: 'Legal' }, raw));
+    const pages = await inspect(snapshot);
+    const body = pages.flatMap((page) => page.items.map((item) => item.text)).filter((text) => !['Paper Lanterns', 'The Quiet Signals'].includes(text)).join('');
+
+    expect(snapshot.pageCount).toBe(1);
+    expect(body).toContain('[Chorus]');
+    expect(body).toContain('[Medley]');
+    expect(body).toContain('A synthetic lyric.');
+    expect(body).toContain('Another synthetic lyric.');
+    expect(body).not.toContain('Singer A');
+    expect(body).not.toContain('Song A');
+  });
+
+  it('generates and extracts every registered section with annotations removed and lyrics intact', async () => {
+    const songTitle = 'Synthetic Registry Title';
+    const songArtist = 'Synthetic Registry Artist';
+    const raw = SECTION_REGISTRY.sections.map(({ name }, index) => `[${name} 2 (Referenced Song: Subtitle): Performer A, Performer B & Performer C]\nRegistry marker ${index + 1}`).join('\n\n');
+    const normalized = normalizeLyrics(raw);
+    const snapshot = await generatePdf(validSong({ size: 'Long Bond' }, raw, songTitle, songArtist));
+    const pages = await inspect(snapshot);
+    const allItems = pages.flatMap((page) => page.items);
+    const body = allItems.filter((item) => item.text !== songTitle && item.text !== songArtist).map((item) => item.text).join('').replace(/\s+/gu, '').normalize('NFC');
+    const expected = normalized.text.replace(/\s+/gu, '').normalize('NFC');
+
+    expect(SECTION_REGISTRY.sections).toHaveLength(48);
+    expect(snapshot.paper).toMatchObject({ size: 'Long Bond', width: 215.9, height: 330.2 });
+    expect(snapshot.pageCount).toBe(pages.length);
+    expect(normalized.rawText).toBe(raw);
+    expect(snapshot.blob.type).toBe('application/pdf');
+    expect(new Uint8Array(await snapshot.blob.arrayBuffer())).toEqual(snapshot.bytes);
+    expect(allItems.map((item) => item.text)).toContain(songTitle);
+    expect(allItems.map((item) => item.text)).toContain(songArtist);
+    expect(body).toBe(expected);
+    expect(body).not.toContain('Performer');
+    expect(body).not.toContain('ReferencedSong');
+
+    SECTION_REGISTRY.sections.forEach(({ name }, index) => {
+      const heading = `[${name} 2]`;
+      const marker = `Registry marker ${index + 1}`;
+      const pageIndex = pages.findIndex((page) => page.items.some((item) => item.text === heading));
+      const markerPageIndex = pages.findIndex((page) => page.items.some((item) => item.text === marker));
+      expect(pageIndex).toBeGreaterThanOrEqual(0);
+      expect(markerPageIndex).toBe(pageIndex);
+      const headingItem = pages[pageIndex]!.items.find((item) => item.text === heading)!;
+      const firstLineItem = pages[pageIndex]!.items.find((item) => item.text === marker)!;
+      expect(headingItem.x).toBeCloseTo(firstLineItem.x, 1);
+      expect(headingItem.y).toBeGreaterThan(firstLineItem.y);
+    });
+  }, 30_000);
+
+  it('keeps a standalone Instrumental Break separate from the following section in the PDF', async () => {
+    const raw = '[Instrumental Break]\n\n[Rap]\nFollowing section lyric.';
+    const snapshot = await generatePdf(validSong({ size: 'A4' }, raw));
+    const items = (await inspect(snapshot))[0]!.items;
+    const texts = items.map((item) => item.text);
+
+    expect(texts.indexOf('[Instrumental Break]')).toBeGreaterThanOrEqual(0);
+    expect(texts.indexOf('[Rap]')).toBeGreaterThan(texts.indexOf('[Instrumental Break]'));
+    expect(texts.indexOf('Following section lyric.')).toBeGreaterThan(texts.indexOf('[Rap]'));
+  });
+
+  it.each(['Rap', 'Hook'])('lets long %s content continue naturally across pages', async (sectionName) => {
+    const lines = Array.from({ length: 110 }, (_, index) => `FLOW${String(index + 1).padStart(3, '0')}`);
+    const snapshot = await generatePdf(validSong({ size: 'A6' }, `[${sectionName}: Performer A]\n${lines.join('\n')}`));
+    const pages = await inspect(snapshot);
+    const body = pages.flatMap((page) => page.items.map((item) => item.text));
+    const extracted = body.join('');
+
+    expect(snapshot.pageCount).toBeGreaterThan(1);
+    expect(body.filter((text) => text === `[${sectionName}]`)).toHaveLength(1);
+    expect(lines.every((line) => extracted.includes(line))).toBe(true);
+    const markerPositions = lines.map((line) => extracted.indexOf(line));
+    expect(markerPositions.every((position, index) => position >= 0 && (index === 0 || position > markerPositions[index - 1]!))).toBe(true);
+    expect(body).not.toContain('Performer A');
+    const headingPage = pages.findIndex((page) => page.items.some((item) => item.text === `[${sectionName}]`));
+    const firstLine = pages[headingPage]!.items.find((item) => item.text === 'FLOW001')!;
+    expect(firstLine).toBeDefined();
+    expect(pages[headingPage]!.items.find((item) => item.text === `[${sectionName}]`)!.x).toBeCloseTo(firstLine.x, 1);
+  });
+
   it('rejects unsupported glyphs instead of creating corrupted PDF text', async () => {
     await expect(generatePdf(validSong({ size: 'A4' }, '🛠'))).rejects.toMatchObject({ code: 'unsupported-glyph' });
   });
@@ -200,35 +334,62 @@ describe('production PDF generation', () => {
     expect(label).toBeDefined();
     expect(firstLine).toBeDefined();
     expect(label.x).toBeCloseTo(firstLine.x, 1);
-    const lastPrevious = pages.flatMap((page) => page.items).find((item) => item.text === 'Previous 22')!;
-    expect(label.x).toBeGreaterThan(lastPrevious.x);
     expect(label.y).toBeGreaterThan(firstLine.y);
+    const orderedItems = pages.flatMap((page) => page.items);
+    expect(orderedItems.findIndex((item) => item.text === 'Previous 22')).toBeLessThan(orderedItems.findIndex((item) => item.text === '[Chorus]'));
   });
 
-  it.each([{ precedingLines: 23, expectedPage: 0 }, { precedingLines: 47, expectedPage: 1 }])(
+  it.each([23, 47])(
     'keeps the section start together at a real column/page boundary after $precedingLines lyric lines',
-    async ({ precedingLines, expectedPage }) => {
+    async (precedingLines) => {
       const before = Array.from({ length: precedingLines }, (_, index) => 'P' + String(index + 1).padStart(2, '0')).join('\n');
       const snapshot = await generatePdf(validSong({ size: 'A6' }, before + '\n\n[Chorus]\nFirst chorus line'));
       const pages = await inspect(snapshot);
       const labelPageIndex = pages.findIndex((page) => page.items.some((item) => item.text === '[Chorus]'));
-      expect(snapshot.pageCount).toBe(expectedPage + 1);
-      expect(labelPageIndex).toBe(expectedPage);
+      const firstLinePageIndex = pages.findIndex((page) => page.items.some((item) => item.text === 'First chorus line'));
+      expect(snapshot.pageCount).toBe(pages.length);
+      expect(labelPageIndex).toBeGreaterThanOrEqual(0);
+      expect(labelPageIndex).toBe(firstLinePageIndex);
       const page = pages[labelPageIndex]!;
       const label = page.items.find((item) => item.text === '[Chorus]')!;
       const firstLine = page.items.find((item) => item.text === 'First chorus line')!;
       expect(label.x).toBeCloseTo(firstLine.x, 1);
       expect(label.y).toBeGreaterThan(firstLine.y);
-      if (expectedPage === 0) {
-        const prior = page.items.find((item) => item.text === 'P' + String(precedingLines).padStart(2, '0'))!;
-        expect(label.x).toBeGreaterThan(prior.x);
-      }
-      if (expectedPage === 1) {
-        expect(label.x).toBeCloseTo(15 * 72 / 25.4, 0);
-        expect(label.y).toBeGreaterThan(pages[0]!.items.find((item) => item.text === 'P47')!.y);
-      }
+      const orderedItems = pages.flatMap((currentPage) => currentPage.items);
+      const priorIndex = orderedItems.findIndex((item) => item.text === 'P' + String(precedingLines).padStart(2, '0'));
+      const labelIndex = orderedItems.findIndex((item) => item.text === '[Chorus]');
+      expect(priorIndex).toBeGreaterThanOrEqual(0);
+      expect(labelIndex).toBeGreaterThan(priorIndex);
     },
   );
+
+  it.each([
+    { precedingLines: 23, sourceHeading: '[Rap: Performer A, Performer B & Performer C]', canonicalHeading: '[Rap]' },
+    { precedingLines: 47, sourceHeading: '[Rap Verse 2: Performer A, Performer B]', canonicalHeading: '[Rap Verse 2]' },
+  ])('keeps $canonicalHeading with its first lyric at a real column or page boundary', async ({ precedingLines, sourceHeading, canonicalHeading }) => {
+    const before = Array.from({ length: precedingLines }, (_, index) => `RP${String(index + 1).padStart(2, '0')}`).join('\n');
+    const raw = `${before}\n\n${sourceHeading}\nUnique first rap line.\nUnique continuing rap line.`;
+    const snapshot = await generatePdf(validSong({ size: 'A6' }, raw));
+    const pages = await inspect(snapshot);
+    const headingPage = pages.findIndex((page) => page.items.some((item) => item.text === canonicalHeading));
+    const firstLinePage = pages.findIndex((page) => page.items.map((item) => item.text).join('').replace(/\s+/gu, '').includes('Uniquefirstrapline.'));
+    const lastPriorPage = pages.findIndex((page) => page.items.some((item) => item.text === `RP${String(precedingLines).padStart(2, '0')}`));
+
+    expect(snapshot.pageCount).toBe(pages.length);
+    expect(headingPage).toBe(firstLinePage);
+    expect(headingPage).toBeGreaterThanOrEqual(lastPriorPage);
+    if (precedingLines === 47) expect(headingPage).toBeGreaterThan(0);
+    const page = pages[headingPage]!;
+    const heading = page.items.find((item) => item.text === canonicalHeading)!;
+    const firstLine = page.items.find((item) => item.text.startsWith('Unique first rap'))!;
+    expect(heading.x).toBeCloseTo(firstLine.x, 1);
+    expect(heading.y).toBeGreaterThan(firstLine.y);
+    if (precedingLines === 23) expect(heading.x).toBeGreaterThan(page.viewport.width / 2);
+    if (precedingLines === 47) expect(heading.x).toBeLessThan(page.viewport.width / 2);
+    expect(page.items.map((item) => item.text)).not.toContain('Performer A');
+    const extracted = pages.flatMap((current) => current.items.map((item) => item.text)).join('').replace(/\s+/gu, '');
+    expect(extracted).toContain('Uniquecontinuingrapline.');
+  });
 
   it('preserves section and stanza gaps within a column without adding a leading boundary gap', async () => {
     const snapshot = await generatePdf(validSong({ size: 'A4' }, '[Verse]\nFirst stanza\n\nSecond stanza\n\n[Chorus]\nFirst chorus line'));

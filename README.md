@@ -4,7 +4,7 @@ A client-side foundation for a focused utility that formats user-provided song l
 
 ## Current status
 
-Phases 1–6 are complete (6/7 phases, 92%). The browser PDF generator supports nine standard paper sizes and validated custom portrait dimensions, wraps repeated headers, lays out lyrics in two equal columns, and loads script-appropriate Noto CJK or Roboto faces on demand. The responsive workspace collects title, artist, lyrics, and paper settings; validates input; and generates a real PDF snapshot. PDF.js renders the retained PDF snapshot as a page canvas with a selectable text layer. Users can navigate pages, zoom from 50% to 200%, fit the page or width, enter fullscreen, and download the exact previewed bytes. PDF.js and its worker load only when a snapshot needs previewing.
+Phases 1–6 are complete (6/7 phases, 92%); Phase 7 release validation is in progress. The browser PDF generator supports nine standard paper sizes and validated custom portrait dimensions, wraps repeated headers, lays out lyrics in two equal columns, and loads script-appropriate Noto CJK or Roboto faces on demand. The responsive workspace collects title, artist, lyrics, and paper settings; validates input; and generates a real PDF snapshot. PDF.js renders the retained PDF snapshot as a page canvas with a selectable text layer. Users can navigate pages, zoom from 50% to 200%, fit the page or width, enter fullscreen, and download the exact previewed bytes. PDF.js and its worker load only when a snapshot needs previewing.
 
 The editor includes standard paper presets and custom dimensions in millimeters or inches. Lyrics and form data remain in memory only. Invalid input and recoverable generation errors preserve the user's text. See the roadmap for Phase 7 release work and the implementation log for browser and production-build evidence.
 
@@ -14,9 +14,10 @@ React, Vite, strict TypeScript, Tailwind CSS 4, pdfmake, PDF.js (`pdfjs-dist`), 
 
 ## Requirements
 
-- Node.js 26.12.1 and npm 11 were used for Phase 1.
-- Install package dependencies: `npm install --cache .npm-cache`
+- Node.js 22.13 or newer and npm are required (`Node.js 26.12.1`, npm 11.20.0 were used for this release review).
+- Install exact locked dependencies: `npm ci --cache .npm-cache`
 - Install the matching Playwright Chromium browser once: `npm run test:e2e:install`
+- Install Firefox and WebKit for the optional browser matrix: `npm run test:e2e:install:matrix`
 
 ## Commands
 
@@ -29,6 +30,7 @@ React, Vite, strict TypeScript, Tailwind CSS 4, pdfmake, PDF.js (`pdfjs-dist`), 
 | `npm run typecheck` | Check application, tests and configuration types. |
 | `npm run test` | Run deterministic Vitest unit/PDF tests. |
 | `npm run test:e2e` | Start a local Vite server, run Playwright Chromium, then stop the server. |
+| `npm run test:e2e:matrix` | Run the isolated generation/preview/download matrix in Chromium, Firefox and WebKit. |
 
 ## Documentation
 
@@ -44,6 +46,6 @@ React, Vite, strict TypeScript, Tailwind CSS 4, pdfmake, PDF.js (`pdfjs-dist`), 
 
 Processing is pure TypeScript and keeps lyrics in memory; it removes only explicit Genius URL lines, preserves ambiguous text, and does not fetch lyrics. PDF output uses embedded Roboto for Latin/Filipino text and on-demand Noto Sans CJK faces for Korean, Japanese, Simplified Chinese and Traditional Chinese. Shared Han-only text defaults to Japanese; canonical-equivalent combining sequences may be composed by PDF font shaping/extraction. Manrope is used for interface text. Aptos redistribution and embedding rights remain unresolved, and no Aptos font file is included. Font notices are in `docs/THIRD_PARTY_NOTICES.md` and copied to `public/licenses/`.
 
-The current Phase 6 viewer renders one PDF page at a time and retains the PDF.js document only while its snapshot is active. Preview uses a bounded canvas (maximum 16 million pixels and 8192 pixels per side), browser-memory bytes, and a temporary download object URL. Phase 7 still owns final release/accessibility/performance review and deployment evidence.
+The viewer renders one PDF page at a time and retains the PDF.js document only while its snapshot is active. Preview uses a bounded canvas (maximum 16 million pixels and 8192 pixels per side), browser-memory bytes, and a temporary download object URL. Phase 7 has added release evidence; a manual screen-reader/WCAG review and a deployed-browser smoke test remain outstanding.
 
-See `docs/TECHNICAL_DECISIONS.md` for font findings and `docs/PROJECT_SPECIFICATION.md` for the complete product baseline.
+See [the release checklist](docs/RELEASE_CHECKLIST.md) for current evidence and remaining release gates. `vercel.json` prepares a static Vite build in `dist/` and sets security headers; no deployment has been made. See `docs/TECHNICAL_DECISIONS.md` for font findings and `docs/PROJECT_SPECIFICATION.md` for the complete product baseline.
