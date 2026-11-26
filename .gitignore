@@ -1,0 +1,9 @@
+node_modules/
+.playwright-browsers/
+dist/
+.npm-cache/
+playwright-report/
+test-results/
+coverage/
+.vite/
+tmp/
