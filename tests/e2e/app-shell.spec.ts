@@ -6,7 +6,7 @@ test('application shell renders and generates a real PDF in the browser', async 
 
   await page.goto('/');
   await expect(page.getByRole('heading', { name: 'Lyrics to PDF' })).toBeVisible();
-  await expect(page.getByText('Technical foundation')).toBeVisible();
+  await expect(page.getByText('Core PDF engine')).toBeVisible();
   await page.getByRole('button', { name: 'Generate PDF fixture' }).click();
   await expect(page.getByRole('status')).toContainText('Generated PDF');
   await expect(page.getByRole('status')).toContainText(/\d+ bytes/);
@@ -16,17 +16,21 @@ test('application shell renders and generates a real PDF in the browser', async 
 test('repeated title and artist are visibly rendered on every continuation page', async ({ page }) => {
   await page.goto('/');
   const result = await page.evaluate(async () => {
-    const [{ generatePdf }, { PDF_LAYOUT }, pdfjs] = await Promise.all([
+    const [{ generatePdf }, { processSongInput }, pdfjs] = await Promise.all([
       import('/src/features/pdf/generate-pdf.ts'),
-      import('/src/features/pdf/layout-config.ts'),
+      import('/src/features/lyrics/validate-input.ts'),
       import('/node_modules/pdfjs-dist/build/pdf.mjs'),
     ]);
     pdfjs.GlobalWorkerOptions.workerSrc = '/node_modules/pdfjs-dist/build/pdf.worker.min.mjs';
-    const { bytes } = await generatePdf({
-      song: { title: 'Paper Lanterns', artist: 'The Quiet Signals' },
-      lyrics: { rawText: Array.from({ length: 240 }, (_, index) => `Flow marker ${String(index + 1).padStart(3, '0')}`).join('\n') },
-      layout: PDF_LAYOUT,
+    const processed = processSongInput({
+      title: 'Paper Lanterns',
+      artist: 'The Quiet Signals',
+      rawLyrics: Array.from({ length: 240 }, (_, index) => `Flow marker ${String(index + 1).padStart(3, '0')}`).join('\n'),
+      paper: { size: 'A4' },
     });
+    if (!processed.success) throw new Error('Browser fixture validation failed.');
+    const snapshot = await generatePdf(processed.data);
+    const { bytes } = snapshot;
     const loadingTask = pdfjs.getDocument({ data: bytes.slice() });
     try {
       const document = await loadingTask.promise;
@@ -54,4 +58,36 @@ test('repeated title and artist are visibly rendered on every continuation page'
   expect(result.pageCount).toBeGreaterThan(1);
   expect(result.headerInk).toHaveLength(result.pageCount);
   expect(result.headerInk.every((count) => count > 10)).toBe(true);
+});
+
+test('browser production generation uses resolved A3, A6, Long Bond and custom paper', async ({ page }) => {
+  await page.goto('/');
+  const results = await page.evaluate(async () => {
+    const [{ generatePdf }, { processSongInput }] = await Promise.all([
+      import('/src/features/pdf/generate-pdf.ts'),
+      import('/src/features/lyrics/validate-input.ts'),
+    ]);
+    const selections = [
+      { size: 'A3' },
+      { size: 'A6' },
+      { size: 'Long Bond' },
+      { size: 'Custom', custom: { width: 8.5, height: 11, unit: 'in' } },
+    ] as const;
+    const snapshots = [];
+    for (const paper of selections) {
+      const processed = processSongInput({
+        title: 'Paper Lanterns',
+        artist: 'The Quiet Signals',
+        rawLyrics: '[Verse 1: Performer A]\nThe browser builds this custom paper document.',
+        paper,
+      });
+      if (!processed.success) throw new Error('The browser paper fixture did not validate.');
+      const snapshot = await generatePdf(processed.data);
+      snapshots.push({ size: snapshot.paper.size, pageCount: snapshot.pageCount, byteLength: snapshot.bytes.byteLength });
+    }
+    return snapshots;
+  });
+
+  expect(results.map((result) => result.size)).toEqual(['A3', 'A6', 'Long Bond', 'Custom']);
+  expect(results.every((result) => result.pageCount === 1 && result.byteLength > 1000)).toBe(true);
 });

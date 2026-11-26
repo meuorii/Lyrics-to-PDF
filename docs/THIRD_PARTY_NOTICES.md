@@ -8,10 +8,10 @@ Copyright 2019 The Manrope Project Authors (https://github.com/sharanda/manrope)
 
 ## Roboto
 
-Copyright 2011 The Roboto Project Authors (https://github.com/googlefonts/roboto-classic). Licensed under the SIL Open Font License 1.1. Bundled in pdfmake's browser VFS for the synthetic PDF prototype. Full license: `public/licenses/Roboto-OFL.txt` and deployed path `/licenses/Roboto-OFL.txt`.
+Copyright 2011 The Roboto Project Authors (https://github.com/googlefonts/roboto-classic). Licensed under the SIL Open Font License 1.1. Embedded from pdfmake's browser VFS for generated PDFs; Regular and Medium (used for bold) provide the current Latin/romanized output coverage. Full license: `public/licenses/Roboto-OFL.txt` and deployed path `/licenses/Roboto-OFL.txt`.
 
 ## Noto Sans JP smoke test
 
 `tests/unit/noto-font-smoke.test.ts` uses `C:\Windows\Fonts\NotoSansJP-Regular.otf` only when that licensed OS font exists. It is not copied into this repository, the bundle or generated app assets. Noto CJK provides upstream SIL OFL licensing; any future redistributed font asset must carry its own matching copyright and license notice.
 
-Other package licenses remain with the installed dependencies and their package metadata. The repository itself is marked `UNLICENSED`; these notices do not grant a license to project code.
+`fontkit` is used from the installed dependency to inspect bundled font cmap coverage and measure text before generation; its license remains with the installed package metadata. Other package licenses remain with the installed dependencies and their package metadata. The repository itself is marked `UNLICENSED`; these notices do not grant a license to project code.

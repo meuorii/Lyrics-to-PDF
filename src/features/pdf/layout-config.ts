@@ -23,3 +23,4 @@ export const PDF_LAYOUT = {
 
 export const PDF_HEADER_BODY_GAP_PT = 12;
 export const PDF_HEADER_RESERVED_HEIGHT_PT = 34;
+export const PDF_MAX_PAGE_DIMENSION_PT = 14_400;

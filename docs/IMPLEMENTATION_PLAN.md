@@ -1,13 +1,13 @@
 # Lyrics to PDF — Seven-Phase Implementation Roadmap
 
-The original 14-page specification is authoritative. The percentages total 100%. Phases 1 and 2 are complete; only Phase 3 is ready to begin. Later phases remain NOT STARTED.
+The original 14-page specification is authoritative. The percentages total 100%. Phases 1–3 are complete; only Phase 4 is ready to begin. Later phases remain NOT STARTED.
 
 ## Progress
 
-- Completed phases: 2 / 7
-- Weighted implementation progress: 24%
-- Completed phases: Phase 1 — Technical Foundation & Feasibility; Phase 2 — Lyrics Processing & Validation Engine
-- Next phase: Phase 3 — Core PDF Generation Engine — NOT STARTED; READY FOR IMPLEMENTATION
+- Completed phases: 3 / 7
+- Weighted implementation progress: 44%
+- Completed phases: Phase 1 — Technical Foundation & Feasibility; Phase 2 — Lyrics Processing & Validation Engine; Phase 3 — Core PDF Generation Engine
+- Next phase: Phase 4 — Advanced Pagination & Multilingual Support — NOT STARTED; READY FOR IMPLEMENTATION
 
 ## Phase 1 — Technical Foundation & Feasibility (12%)
 
@@ -63,19 +63,27 @@ The original 14-page specification is authoritative. The percentages total 100%.
 
 **Objective:** Turn validated normalized songs into a correct, monochrome document snapshot.
 
-**Scope:** Consume Phase 2 resolved portrait dimensions and normalized lyrics; centralized PDF geometry; embedded approved font; supported paper sizes in production rendering; title/artist/body typography; continuous two-column layout; repeated full-width header; one blank section separator; no font shrinking or artificial balancing; Blob/bytes and safe filename metadata.
+**Scope:** Consume Phase 2 validated normalized songs and resolved portrait dimensions; centralized PDF geometry; embedded OFL-licensed Roboto; all registered paper sizes in production rendering; title/artist/body typography; continuous two-column layout; repeated full-width header; one blank section separator; no font shrinking or artificial balancing; immutable byte snapshot, PDF Blob and safe filename metadata.
 
 **Skills:** `writing-plans`, `domain-modeling`, `test-driven-development`, `ponytail`, PDF skill, `verification-before-completion`.
 
-**Dependencies:** Phases 1–2; licensing-approved font assets.
+**Dependencies:** Phases 1–2; bundled Roboto OFL assets.
 
-**Acceptance criteria:** generated documents preserve all normalized content, dimensions and font sizes; long text flows in order without clipping, dropped content, duplicate labels or extra pages; extraction and rendered pages are inspected.
+**Acceptance criteria:** generated documents preserve supported normalized content, exact page dimensions and font sizes; long text flows in order without clipping, dropped content, duplicate labels or artificial extra pages; unsupported glyphs and unsafe headers/tokens fail safely; extraction and rendered pages are inspected.
 
 **Out of scope:** production preview, download controls and exhaustive mixed-script fallback.
 
-**Completion checklist:** NOT STARTED — implement paper model, font registry and production generator; verify extracted text, page geometry and representative renders.
+**Completion checklist:**
 
-**Status:** NOT STARTED.
+- [x] Add focused production-generation tests against actual PDF bytes.
+- [x] Implement embedded font registry, glyph/layout checks, filename creation, and immutable PDF snapshot.
+- [x] Generate every registered paper size and custom portrait dimensions with continuous two-column flow and repeated headers.
+- [x] Verify text extraction/order, font embedding, dimensions, representative rendered pages, and safe failures.
+- [x] Run required type, lint, unit, browser, startup, and production-build checks; record limitations and Phase 4 handoff.
+
+**Verification:** See the 2026-11-26 Phase 3 entry in `docs/IMPLEMENTATION_LOG.md`.
+
+**Status:** COMPLETE.
 
 ## Phase 4 — Advanced Pagination & Multilingual Support (16%)
 

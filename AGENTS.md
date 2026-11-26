@@ -20,7 +20,7 @@ React, Vite, strict TypeScript, Tailwind CSS, pdfmake, PDF.js (`pdfjs-dist`), Lu
 
 ## Phase strategy and scope
 
-There are seven weighted phases: technical foundation 12%; lyrics processing 12%; core PDF engine 20%; pagination and multilingual support 16%; interface/design system 18%; preview/download integration 14%; refinement/release 8%. Implement only the current phase. Phases 1 and 2 are complete (2/7, 24%); Phase 3 — Core PDF Generation Engine — is next and ready. Follow the roadmap acceptance criteria before changing status.
+There are seven weighted phases: technical foundation 12%; lyrics processing 12%; core PDF engine 20%; pagination and multilingual support 16%; interface/design system 18%; preview/download integration 14%; refinement/release 8%. Implement only the current phase. Phases 1–3 are complete (3/7, 44%); Phase 4 — Advanced Pagination & Multilingual Support — is next and ready. Follow the roadmap acceptance criteria before changing status.
 
 ## Coding conventions
 
@@ -31,7 +31,7 @@ There are seven weighted phases: technical foundation 12%; lyrics processing 12%
 - Keep the interface minimalist editorial: Manrope, #FAFAF7, #F4E11B and #0035AD; restrained borders, 4–6 px corners, visible focus, and reduced motion.
 - Prefer the smallest implementation that fully satisfies the current phase. Avoid unused placeholders and speculative abstractions.
 - Keep lyrics in memory only. Do not add network submission, storage, analytics, or secrets.
-- `src/features/lyrics/` owns pure normalization, section recognition, and input validation; `src/features/paper/` owns presets, unit conversion, dimension resolution, and foundational geometry. `processSongInput` is the Phase 3 input boundary; production rendering remains separate.
+- `src/features/lyrics/` owns pure normalization, section recognition, and input validation; `src/features/paper/` owns presets, unit conversion, dimension resolution, and foundational geometry. `processSongInput` is the generation boundary; `src/features/pdf/` owns PDF layout, fonts, filenames, and generation. The Phase 3 renderer uses embedded Roboto and rejects unsupported glyphs; script fallback is Phase 4.
 
 ## Skills
 

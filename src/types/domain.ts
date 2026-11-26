@@ -81,10 +81,45 @@ export type PdfGenerationInput = {
   layout: PdfLayoutConfig;
 };
 
-export type PdfGenerationResult = {
-  blob: Blob;
-  bytes: Uint8Array;
-};
+export type PdfGenerationErrorCode =
+  | 'invalid-input'
+  | 'invalid-geometry'
+  | 'font-loading'
+  | 'unsupported-glyph'
+  | 'unsafe-layout'
+  | 'generation-failed'
+  | 'inspection-failed';
+
+export class PdfGenerationError extends Error {
+  constructor(readonly code: PdfGenerationErrorCode, message: string) {
+    super(message);
+    this.name = 'PdfGenerationError';
+  }
+}
+
+export class PdfSnapshot {
+  readonly blob: Blob;
+  readonly pageCount: number;
+  readonly filename: string;
+  readonly paper: ResolvedPaperDimensions;
+  readonly geometry: PaperGeometry;
+  readonly #ownedBytes: Uint8Array;
+
+  constructor(bytes: Uint8Array, pageCount: number, filename: string, paper: ResolvedPaperDimensions, geometry: PaperGeometry) {
+    this.#ownedBytes = bytes.slice();
+    this.blob = new Blob([this.#ownedBytes.slice().buffer], { type: 'application/pdf' });
+    this.pageCount = pageCount;
+    this.filename = filename;
+    this.paper = Object.freeze({ ...paper });
+    this.geometry = Object.freeze({ ...geometry, issues: [...geometry.issues] });
+  }
+
+  get bytes(): Uint8Array {
+    return this.#ownedBytes.slice();
+  }
+}
+
+export type PdfGenerationResult = PdfSnapshot;
 
 export type PdfPreviewState =
   | { status: 'empty' }

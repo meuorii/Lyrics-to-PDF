@@ -4,7 +4,7 @@ A client-side foundation for a focused utility that formats user-provided song l
 
 ## Current status
 
-Phases 1 and 2 — Technical Foundation & Feasibility and Lyrics Processing & Validation Engine — are complete (2/7 phases, 24%). The repository contains a minimal React shell, an isolated synthetic PDF feasibility prototype, pure lyrics normalization/validation, and paper dimension resolution/geometry checks. Phase 3 production PDF rendering is next; the production editor, preview controls and download workflow remain for later phases.
+Phases 1–3 — Technical Foundation & Feasibility, Lyrics Processing & Validation Engine, and Core PDF Generation Engine — are complete (3/7 phases, 44%). The repository contains pure lyrics normalization/validation, paper dimension resolution, and a browser PDF generator that returns a byte snapshot and Blob for registered and custom portrait paper sizes. Its embedded Roboto font safely rejects unsupported glyphs; multilingual fallback and pagination hardening are Phase 4. The production editor, preview controls and download workflow remain for later phases.
 
 ## Technology
 

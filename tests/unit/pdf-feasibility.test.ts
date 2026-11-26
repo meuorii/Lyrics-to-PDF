@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import * as pdfjs from 'pdfjs-dist/legacy/build/pdf.mjs';
 import { generatePdf } from '../../src/features/pdf/generate-pdf';
 import { PDF_LAYOUT } from '../../src/features/pdf/layout-config';
+import { processSongInput } from '../../src/features/lyrics/validate-input';
 import type { PdfGenerationInput } from '../../src/types/domain';
 
 const shortSong: PdfGenerationInput = {
@@ -13,7 +14,14 @@ const shortSong: PdfGenerationInput = {
 };
 
 async function inspectPdf(input: PdfGenerationInput) {
-  const { bytes } = await generatePdf(input);
+  const processed = processSongInput({
+    title: input.song.title,
+    artist: input.song.artist,
+    rawLyrics: input.lyrics.rawText,
+    paper: { size: input.layout.paperSize },
+  });
+  if (!processed.success) throw new Error('Synthetic PDF fixture must validate.');
+  const { bytes } = await generatePdf(processed.data);
   const document = await pdfjs.getDocument({ data: bytes.slice() }).promise;
   const pages = [];
   for (let pageNumber = 1; pageNumber <= document.numPages; pageNumber += 1) {
