@@ -98,8 +98,17 @@ test('CSS fullscreen fallback traps focus and exits with Escape', async ({ page 
   await expect(page.getByLabel('PDF preview status')).toContainText('Preview ready');
 
   await page.getByRole('button', { name: 'Enter fullscreen' }).click();
-  await expect(page.getByRole('dialog', { name: 'Expanded PDF preview' })).toBeVisible();
-  await expect(page.getByRole('dialog', { name: 'Expanded PDF preview' })).toContainText('Expanded preview. Press Escape to return to the editor.');
+  const dialog = page.getByRole('dialog', { name: 'Expanded PDF preview' });
+  await expect(dialog).toBeVisible();
+  await expect(dialog).toContainText('Expanded preview. Press Escape to return to the editor.');
+  const controls = dialog.locator('button:not([disabled])');
+  const firstControl = controls.first();
+  const lastControl = controls.last();
+  await lastControl.focus();
+  await page.keyboard.press('Tab');
+  await expect(firstControl).toBeFocused();
+  await page.keyboard.press('Shift+Tab');
+  await expect(lastControl).toBeFocused();
   await page.keyboard.press('Escape');
   await expect(page.getByRole('dialog', { name: 'Expanded PDF preview' })).toHaveCount(0);
   await expect(page.getByRole('button', { name: 'Enter fullscreen' })).toBeFocused();

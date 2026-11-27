@@ -1,5 +1,7 @@
 # Lyrics domain glossary
 
+- **Lyrie:** The public-facing product name; “Lyrics to PDF Converter” remains its descriptive category.
+
 - **Section heading:** A complete, standalone bracketed line that matches a registered section type and the supported annotation grammar.
 - **Canonical section type:** One of the 48 supported section names used in normalized output.
 - **Alias:** An explicitly supported spelling that maps to a canonical section type without changing its musical meaning.

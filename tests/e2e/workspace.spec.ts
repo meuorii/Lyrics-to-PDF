@@ -3,7 +3,7 @@ import { expect, test } from '@playwright/test';
 test('workspace labels required fields and reports validation without losing input', async ({ page }) => {
   await page.goto('/');
 
-  await expect(page.getByRole('heading', { name: 'Lyrics to PDF' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Lyrics made simple.' })).toBeVisible();
   await expect(page.getByLabel('Song title')).toBeVisible();
   await expect(page.getByLabel('Artist')).toBeVisible();
   await expect(page.getByRole('textbox', { name: 'Lyrics' })).toBeVisible();
@@ -83,6 +83,23 @@ test('valid input creates a real snapshot, marks edits stale, regenerates, and r
   await expect(page.getByRole('heading', { name: 'No document yet' })).toBeVisible();
   await expect(page.getByLabel('Song title')).toBeFocused();
   expect(runtimeErrors).toEqual([]);
+});
+
+test('repeated generation and reset cycles clear the previous preview cleanly', async ({ page }) => {
+  await page.goto('/');
+  page.on('dialog', (dialog) => dialog.accept());
+  for (let cycle = 1; cycle <= 3; cycle += 1) {
+    await page.getByLabel('Song title').fill(`Lifecycle cycle ${cycle}`);
+    await page.getByLabel('Artist').fill('Synthetic release check');
+    await page.getByRole('textbox', { name: 'Lyrics' }).fill(`Cycle marker ${cycle}`);
+    await page.getByRole('button', { name: 'Generate PDF' }).click();
+    await expect(page.getByLabel('PDF document status')).toContainText('PDF generated');
+    await expect(page.getByLabel('PDF preview status')).toContainText('Preview ready');
+    await page.getByRole('button', { name: 'Reset form' }).click();
+    await expect(page.getByRole('heading', { name: 'No document yet' })).toBeVisible();
+    await expect(page.locator('.pdf-page-canvas')).toHaveCount(0);
+    await expect(page.getByLabel('PDF document status')).toContainText('No PDF has been generated');
+  }
 });
 
 test('production editor canonicalizes an annotated Rap heading in the Long Bond preview', async ({ page }) => {

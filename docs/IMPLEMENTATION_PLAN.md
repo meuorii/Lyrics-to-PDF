@@ -153,6 +153,8 @@ The original 14-page specification is authoritative. The percentages total 100%.
 
 ## Phase 7 — Refinement, Testing & Release Readiness (8%)
 
+**Approved milestone — Lyrie Brand Identity Integration:** Apply the supplied official logo and browser icon, update the masthead and page introduction, set static Lyrie metadata, add focused responsive/accessibility/asset regression coverage, and record evidence. This milestone does not add a phase, change weighting, change PDF output, or close the deployed-browser release gate.
+
 **Objective:** Validate the complete application against product, quality, privacy and release gates.
 
 **Scope:** full test matrix; accessibility/responsive review; performance/resource limits; output/font notices; documentation; static Vercel configuration and deployed smoke test only when deployment is requested/available.
@@ -168,15 +170,18 @@ The original 14-page specification is authoritative. The percentages total 100%.
 **Completion checklist:**
 
 - [x] Render and review all 14 pages of the authoritative specification; trace FR-01–FR-12, T01–T13, and page 14 release gates in `docs/RELEASE_CHECKLIST.md`.
-- [x] Reinstall from `package-lock.json`; run typecheck, lint, all 90 unit tests, the full Chromium E2E suite, and production build.
-- [x] Verify generation, preview, page controls, multilingual text, privacy boundary, and exact download bytes in Chromium 159, Firefox 159, and WebKit 27.2, against both Vite and the production build.
-- [x] Stress 1,000 synthetic lyric lines: 26 pages, first and last content visible, 9.2 seconds isolated Chromium generation plus initial preview, approximately 60 MB reported JS heap.
+- [x] Reinstall from `package-lock.json`; run typecheck, lint, all 260 unit tests, the full Chromium E2E suite, and production build.
+- [x] Verify generation, preview, page controls, multilingual text, privacy boundary, and exact download bytes in Chromium 159, Firefox 159, and WebKit 27.2, against both Vite and the production build under Vercel-equivalent headers.
+- [x] Stress 1,000 synthetic lyric lines: 26 pages, first and last content visible; latest parallel-run generation and preview took 21.4 seconds with approximately 64 MB reported Chromium JS heap.
 - [x] Verify all eight documented Noto CJK file sizes and SHA-256 hashes; inspect Vercel static build configuration and production build output.
 - [x] Reproduce and fix the Legal renderer-height mismatch with a lyric-free regression fixture; verify the exact local input through processing, PDF generation, PDF.js extraction/page count, and snapshot Blob byte equality.
 - [x] Refine renderer-safe pagination so visual height advances the cursor and renderer extents are checked per proposed line; verify atomic section starts, canonical annotated labels, and the exact local input's extracted text and one-page Legal geometry.
 - [x] Implement the approved 48-type canonical section registry with explicit aliases and decimal numbering; verify shared annotation removal, conservative multiline handling, all-section PDF output, and new-section pagination behavior.
 - [x] Re-run the available Family input through the production editor and confirm preview/download byte equality in Chromium and Brave; run the development Chromium suite and Chromium/Firefox/WebKit matrix. The separate Ikaw raw input is not available, so its exact-input result remains unverified.
-- [ ] Complete a manual screen-reader and broader WCAG 2.2 AA audit. Existing keyboard, semantic-name, responsive, reduced-motion and focused contrast checks are automated; they do not certify assistive-technology behavior or all states.
+- [x] Final locked install, `npm audit`, typecheck, lint, 260 unit tests, 23 Chromium E2E tests, both development and production-artifact browser matrices, and production build. Added explicit fullscreen Tab/Shift+Tab wrap assertions and three generate/reset lifecycle cycles.
+- [x] Locally enforce the configured Vercel CSP/security headers against `dist`; verify the main app and worker MIME type, browser compatibility, same-byte download, and production CJK font asset hashes.
+- [x] User reports successful completion of the previously provided manual accessibility checklist using Windows Narrator. Fresh targeted automated checks also pass for field semantics/validation, responsive reflow, keyboard names/focus, reduced motion, sampled contrast, and native/CSS fullscreen behavior. Record this as user-performed manual evidence; it is not an exhaustive WCAG 2.2 AA audit or conformance claim.
+- [x] Complete the Lyrie Brand Identity Integration milestone: use the approved logo/icon assets; update masthead, H1, metadata and documentation; verify dev and local production-preview assets and responsive layout from 320–1440 px; preserve PDF output and application behavior.
 - [ ] After a deployment is explicitly authorized and available, run the deployed browser smoke test for worker/font paths and exact-byte download. Local production preview passes; no remote deployment was performed.
 
-**Status:** IN PROGRESS — product, document, engineering, privacy and local production evidence is recorded. Accessibility and deployed-release gates remain open; do not claim Phase 7 complete or the project 100% complete.
+**Status:** IN PROGRESS — the project-defined accessibility checklist and local product, document, engineering, privacy, and production evidence are recorded. The mandatory deployed-browser gate remains open; do not claim Phase 7 complete or the project 100% complete. No comprehensive WCAG conformance claim is made.

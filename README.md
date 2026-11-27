@@ -1,6 +1,6 @@
-# Lyrics to PDF
+# Lyrie — Lyrics to PDF Converter
 
-A client-side foundation for a focused utility that formats user-provided song lyrics as printable documents. Lyrics stay in browser memory; the application has no backend, lyrics API, account, database, or persistence.
+Lyrie is a private, browser-based utility that turns user-provided song lyrics into clean, printable PDFs. Lyrics stay in browser memory; the application has no backend, lyrics API, account, database, or persistence.
 
 ## Current status
 
@@ -46,6 +46,6 @@ React, Vite, strict TypeScript, Tailwind CSS 4, pdfmake, PDF.js (`pdfjs-dist`), 
 
 Processing is pure TypeScript and keeps lyrics in memory; it removes only explicit Genius URL lines, preserves ambiguous text, and does not fetch lyrics. PDF output uses embedded Roboto for Latin/Filipino text and on-demand Noto Sans CJK faces for Korean, Japanese, Simplified Chinese and Traditional Chinese. Shared Han-only text defaults to Japanese; canonical-equivalent combining sequences may be composed by PDF font shaping/extraction. Manrope is used for interface text. Aptos redistribution and embedding rights remain unresolved, and no Aptos font file is included. Font notices are in `docs/THIRD_PARTY_NOTICES.md` and copied to `public/licenses/`.
 
-The viewer renders one PDF page at a time and retains the PDF.js document only while its snapshot is active. Preview uses a bounded canvas (maximum 16 million pixels and 8192 pixels per side), browser-memory bytes, and a temporary download object URL. Phase 7 has added release evidence; a manual screen-reader/WCAG review and a deployed-browser smoke test remain outstanding.
+The viewer renders one PDF page at a time and retains the PDF.js document only while its snapshot is active. Preview uses a bounded canvas (maximum 16 million pixels and 8192 pixels per side), browser-memory bytes, and a temporary download object URL. The Lyrie interface uses the approved logo and browser icon. Latest local verification includes 260 unit tests, 24 Chromium E2E tests, Chromium/Firefox/WebKit development and production-artifact workflows under the configured security headers, and an npm audit with zero vulnerabilities. The user reports successfully completing the manual Windows Narrator accessibility checklist; this is not a comprehensive WCAG 2.2 AA conformance claim. The authoritative deployed-browser smoke test remains outstanding.
 
 See [the release checklist](docs/RELEASE_CHECKLIST.md) for current evidence and remaining release gates. `vercel.json` prepares a static Vite build in `dist/` and sets security headers; no deployment has been made. See `docs/TECHNICAL_DECISIONS.md` for font findings and `docs/PROJECT_SPECIFICATION.md` for the complete product baseline.

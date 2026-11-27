@@ -64,6 +64,32 @@ test('generates, previews, navigates, and downloads identical multilingual PDF b
   await page.getByRole('button', { name: 'Previous page' }).click();
   await expect(page.getByTestId('page-indicator')).toHaveText(`1 / ${pageCount}`);
 
+  const initialZoom = Number((await page.locator('.zoom-readout').textContent())?.replace('%', ''));
+  await page.getByRole('button', { name: 'Zoom in' }).click();
+  await expect.poll(() => page.locator('.zoom-readout').textContent()).not.toBe(`${initialZoom}%`);
+  await page.getByRole('button', { name: 'Fit page', exact: true }).click();
+  await expect(page.getByRole('button', { name: 'Fit page', exact: true })).toHaveAttribute('aria-pressed', 'true');
+  await page.getByRole('button', { name: 'Fit page to width' }).click();
+  await expect(page.getByRole('button', { name: 'Fit page to width' })).toHaveAttribute('aria-pressed', 'true');
+  await expect(page.getByLabel('PDF preview status')).toContainText('Preview ready');
+  await expect(page.getByRole('button', { name: 'Download PDF' })).toBeEnabled();
+
+  await page.getByRole('button', { name: 'Enter fullscreen' }).click();
+  await expect.poll(() => page.evaluate(() => document.fullscreenElement !== null
+    || document.querySelector('[role="dialog"][aria-label="Expanded PDF preview"]') !== null)).toBe(true);
+  const exitFullscreen = page.getByRole('button', { name: 'Exit fullscreen' });
+  if (await page.getByRole('dialog', { name: 'Expanded PDF preview' }).count()) {
+    const controls = page.getByRole('dialog', { name: 'Expanded PDF preview' }).locator('button:not([disabled])');
+    await expect(controls.first()).toBeFocused();
+    await page.evaluate(() => new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))));
+    await page.keyboard.press('Shift+Tab');
+    await expect(controls.last()).toBeFocused();
+    await page.keyboard.press('Tab');
+    await expect(controls.first()).toBeFocused();
+  }
+  await exitFullscreen.click();
+  await expect(page.getByRole('button', { name: 'Enter fullscreen' })).toBeFocused();
+
   const transferredBytes = await page.evaluate(() => (window as Window & { __phase7PdfTransfers?: number[][] }).__phase7PdfTransfers ?? []);
   expect(transferredBytes.length).toBeGreaterThanOrEqual(2);
   const sourceBytes = Buffer.from(transferredBytes.at(-1)!);
@@ -82,4 +108,29 @@ test('generates, previews, navigates, and downloads identical multilingual PDF b
   expect(externalRequests).toEqual([]);
   expect(runtimeErrors).toEqual([]);
   console.log(`${browserName} ${browser.version()}: generated, previewed and byte-verified a ${sourceBytes.byteLength}-byte multilingual PDF in ${generationAndPreviewMs.toFixed(0)} ms.`);
+});
+
+test('CSS fullscreen fallback wraps focus and returns focus with Escape', async ({ page }) => {
+  await page.addInitScript(() => {
+    Object.defineProperty(HTMLElement.prototype, 'requestFullscreen', { configurable: true, value: undefined });
+  });
+  await page.goto('/');
+  await page.getByLabel('Song title').fill('Fallback keyboard review');
+  await page.getByLabel('Artist').fill('Synthetic browser test');
+  await page.getByRole('textbox', { name: 'Lyrics' }).fill('A short synthetic page checks keyboard containment.');
+  await page.getByRole('button', { name: 'Generate PDF' }).click();
+  await expect(page.getByLabel('PDF preview status')).toContainText('Preview ready');
+  await page.getByRole('button', { name: 'Enter fullscreen' }).click();
+  const dialog = page.getByRole('dialog', { name: 'Expanded PDF preview' });
+  await expect(dialog).toBeVisible();
+  const controls = dialog.locator('button:not([disabled])');
+  await expect(controls.first()).toBeFocused();
+  await page.evaluate(() => new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))));
+  await page.keyboard.press('Shift+Tab');
+  await expect(controls.last()).toBeFocused();
+  await page.keyboard.press('Tab');
+  await expect(controls.first()).toBeFocused();
+  await page.keyboard.press('Escape');
+  await expect(dialog).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Enter fullscreen' })).toBeFocused();
 });

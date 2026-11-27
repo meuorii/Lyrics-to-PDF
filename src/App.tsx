@@ -1,6 +1,5 @@
 import { useRef, useState, type FormEvent } from 'react';
 import {
-  FileText,
   LoaderCircle,
   RotateCcw,
 } from 'lucide-react';
@@ -224,9 +223,8 @@ export default function App() {
     <div className="app-shell">
       <header className="masthead">
         <div className="masthead-inner">
-          <a className="wordmark" href="#main" aria-label="Lyrics to PDF home">
-            <span className="wordmark-mark" aria-hidden="true"><FileText size={19} strokeWidth={1.8} /></span>
-            <span>lyrics.to.pdf</span>
+          <a className="wordmark" href="#main" aria-label="Lyrie home">
+            <img src={`${import.meta.env.BASE_URL}brand/lyrie-logo.svg`} width="94" height="36" alt="" />
           </a>
           <p className="privacy-note"><span className="privacy-dot" aria-hidden="true" />Private by design</p>
         </div>
@@ -234,8 +232,8 @@ export default function App() {
 
       <main className="workspace-main" id="main">
         <div className="page-intro">
-          <h1>Lyrics to PDF</h1>
-          <p>Turn your lyrics into a clean, printable document.</p>
+          <h1>Lyrics made simple.</h1>
+          <p>Turn your favorite lyrics into clean, print-ready PDFs.</p>
         </div>
 
         <div className="workspace-grid">

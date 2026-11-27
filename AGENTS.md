@@ -1,8 +1,8 @@
-# Lyrics to PDF agent instructions
+# Lyrie — Lyrics to PDF agent instructions
 
 ## Purpose and source hierarchy
 
-Build a private, client-side utility that formats user-provided song lyrics into a printable PDF. The authoritative product baseline is [`Lyrics_to_PDF_Complete_Product_and_Implementation_Specification.pdf`](./Lyrics_to_PDF_Complete_Product_and_Implementation_Specification.pdf) (14 pages). Read project context in this order:
+Build Lyrie, a private, client-side utility that formats user-provided song lyrics into printable PDFs. “Lyrics to PDF Converter” is the descriptive product category; the official interface logo and browser icon live in `public/brand/`. The approved tagline is “Lyrics made simple.” The authoritative product baseline is [`Lyrics_to_PDF_Complete_Product_and_Implementation_Specification.pdf`](./Lyrics_to_PDF_Complete_Product_and_Implementation_Specification.pdf) (14 pages), amended by the approved Lyrie branding milestone recorded in the project docs. Read project context in this order:
 
 1. `AGENTS.md`
 2. `docs/IMPLEMENTATION_PLAN.md`

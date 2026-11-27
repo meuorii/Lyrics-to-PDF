@@ -5,7 +5,7 @@ test('production workspace renders and generates a real PDF in the browser', asy
   page.on('pageerror', (error) => runtimeErrors.push(error.message));
 
   await page.goto('/');
-  await expect(page.getByRole('heading', { name: 'Lyrics to PDF' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Lyrics made simple.' })).toBeVisible();
   await expect(page.getByLabel('Song title')).toBeVisible();
   await page.getByLabel('Song title').fill('Browser workspace');
   await page.getByLabel('Artist').fill('Workspace test');
@@ -14,6 +14,50 @@ test('production workspace renders and generates a real PDF in the browser', asy
   await expect(page.getByLabel('PDF document status')).toContainText('PDF generated');
   await expect(page.locator('.document-facts')).toContainText(/\d+(\.\d+)?\s+KB|\d+ bytes/);
   expect(runtimeErrors).toEqual([]);
+});
+
+test('Lyrie branding, metadata, logo and favicon assets load responsively', async ({ page, request }) => {
+  await page.goto('/');
+  await expect(page).toHaveTitle('Lyrie — Lyrics to PDF Converter');
+  await expect(page.getByRole('heading', { level: 1, name: 'Lyrics made simple.' })).toHaveCount(1);
+  await expect(page.locator('.page-intro p')).toHaveText('Turn your favorite lyrics into clean, print-ready PDFs.');
+  const brandLink = page.getByRole('link', { name: 'Lyrie home' });
+  await expect(brandLink).toHaveAttribute('href', '#main');
+  const logo = brandLink.locator('img');
+  await expect(logo).toHaveAttribute('src', '/brand/lyrie-logo.svg');
+  await expect(logo).toBeVisible();
+  await expect(page.getByText('Private by design')).toBeVisible();
+  await expect(page.locator('.wordmark')).not.toContainText('lyrics.to.pdf');
+  await expect(page.locator('meta[name="application-name"]')).toHaveAttribute('content', 'Lyrie');
+  await expect(page.locator('meta[name="description"]')).toHaveAttribute('content', 'Turn your favorite lyrics into clean, print-ready PDFs with Lyrie. Simple, private, and processed entirely in your browser.');
+  await expect(page.locator('meta[property="og:title"]')).toHaveAttribute('content', 'Lyrie — Lyrics made simple.');
+  await expect(page.locator('meta[property="og:description"]')).toHaveAttribute('content', 'Turn your favorite lyrics into clean, print-ready PDFs with Lyrie. Simple, private, and processed entirely in your browser.');
+  await expect(page.locator('meta[property="og:type"]')).toHaveAttribute('content', 'website');
+  await expect(page.locator('meta[property="og:site_name"]')).toHaveAttribute('content', 'Lyrie');
+
+  for (const [selector, expectedType] of [
+    ['link[rel="icon"][type="image/svg+xml"]', 'image/svg+xml'],
+    ['link[rel="icon"][type="image/png"]', 'image/png'],
+  ] as const) {
+    const iconUrl = await page.locator(selector).getAttribute('href');
+    expect(iconUrl).toMatch(/^\/brand\/lyrie-icon\.(svg|png)$/);
+    const response = await request.get(iconUrl!);
+    expect(response.ok()).toBe(true);
+    expect(response.headers()['content-type']).toContain(expectedType);
+  }
+
+  for (const width of [320, 375, 768, 1024, 1280, 1440]) {
+    await page.setViewportSize({ width, height: 900 });
+    const layout = await page.evaluate(() => {
+      const header = document.querySelector('.masthead')!.getBoundingClientRect();
+      const logoBounds = document.querySelector('.wordmark img')!.getBoundingClientRect();
+      const privacy = document.querySelector('.privacy-note')!.getBoundingClientRect();
+      return { scrollWidth: document.documentElement.scrollWidth, width: innerWidth, header, logoBounds, privacy };
+    });
+    expect(layout.scrollWidth).toBe(layout.width);
+    expect(Math.abs(layout.logoBounds.height - layout.header.height)).toBeLessThanOrEqual(28);
+    expect(layout.logoBounds.right).toBeLessThan(layout.privacy.left);
+  }
 });
 
 test('repeated title and artist are visibly rendered on every continuation page', async ({ page }) => {
