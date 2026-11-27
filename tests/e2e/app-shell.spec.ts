@@ -26,7 +26,8 @@ test('Lyrie branding, metadata, logo and favicon assets load responsively', asyn
   const logo = brandLink.locator('img');
   await expect(logo).toHaveAttribute('src', '/brand/lyrie-logo.svg');
   await expect(logo).toBeVisible();
-  await expect(page.getByText('Private by design')).toBeVisible();
+  await expect(page.locator('.masthead')).not.toContainText('Private by design');
+  await expect(page.locator('.workspace-footer')).toContainText('Your lyrics are processed in this browser and are not saved.');
   await expect(page.locator('.wordmark')).not.toContainText('lyrics.to.pdf');
   await expect(page.locator('meta[name="application-name"]')).toHaveAttribute('content', 'Lyrie');
   await expect(page.locator('meta[name="description"]')).toHaveAttribute('content', 'Turn your favorite lyrics into clean, print-ready PDFs with Lyrie. Simple, private, and processed entirely in your browser.');
@@ -46,17 +47,98 @@ test('Lyrie branding, metadata, logo and favicon assets load responsively', asyn
     expect(response.headers()['content-type']).toContain(expectedType);
   }
 
-  for (const width of [320, 375, 768, 1024, 1280, 1440]) {
+  for (const width of [320, 375, 390, 768, 1024, 1280, 1440, 1920, 2560]) {
     await page.setViewportSize({ width, height: 900 });
     const layout = await page.evaluate(() => {
       const header = document.querySelector('.masthead')!.getBoundingClientRect();
       const logoBounds = document.querySelector('.wordmark img')!.getBoundingClientRect();
-      const privacy = document.querySelector('.privacy-note')!.getBoundingClientRect();
-      return { scrollWidth: document.documentElement.scrollWidth, width: innerWidth, header, logoBounds, privacy };
+      return { scrollWidth: document.documentElement.scrollWidth, clientWidth: document.documentElement.clientWidth, width: innerWidth, header, logoBounds };
     });
-    expect(layout.scrollWidth).toBe(layout.width);
-    expect(Math.abs(layout.logoBounds.height - layout.header.height)).toBeLessThanOrEqual(28);
-    expect(layout.logoBounds.right).toBeLessThan(layout.privacy.left);
+    expect(layout.scrollWidth).toBe(layout.clientWidth);
+    expect(layout.header.height).toBe(width < 640 ? 56 : 64);
+    expect(layout.logoBounds.height).toBe(width < 640 ? 32 : 36);
+    expect(layout.logoBounds.right).toBeLessThan(layout.width);
+  }
+});
+
+test('desktop workspace stays centered at wide viewports with a single-row toolbar and centered empty state', async ({ page }) => {
+  await page.goto('/');
+  for (const [width, height] of [[1440, 1064], [1920, 1080], [2560, 1440]] as const) {
+    await page.setViewportSize({ width, height });
+    const layout = await page.evaluate(() => {
+      const box = (selector: string) => {
+        const rect = document.querySelector(selector)!.getBoundingClientRect();
+        return { x: rect.x, y: rect.y, width: rect.width, height: rect.height, right: rect.right, bottom: rect.bottom };
+      };
+      return {
+        clientWidth: document.documentElement.clientWidth,
+        scrollWidth: document.documentElement.scrollWidth,
+        main: box('.workspace-main'),
+        intro: box('.page-intro'),
+        editor: box('.editor-panel'),
+        preview: box('.preview-panel'),
+        toolbar: box('.preview-toolbar'),
+        fullscreen: box('.fullscreen-button'),
+        canvas: box('.pdf-preview-viewport'),
+        emptyState: box('.empty-state'),
+        mastheadLogo: box('.wordmark img'),
+        background: getComputedStyle(document.querySelector('.app-shell')!).backgroundImage,
+      };
+    });
+    const expectedContentWidth = Math.min(layout.clientWidth - 80, 1280);
+    expect(layout.background).toContain('linear-gradient');
+    expect(layout.scrollWidth).toBe(layout.clientWidth);
+    expect(layout.main.width).toBeLessThanOrEqual(1360);
+    expect(Math.abs(layout.intro.x - (layout.clientWidth - expectedContentWidth) / 2)).toBeLessThanOrEqual(1);
+    expect(Math.abs(layout.intro.x - layout.mastheadLogo.x)).toBeLessThanOrEqual(1);
+    expect(layout.preview.x).toBeGreaterThan(layout.editor.right);
+    expect(Math.abs(layout.canvas.y + layout.canvas.height / 2 - (layout.emptyState.y + layout.emptyState.height / 2))).toBeLessThanOrEqual(1);
+    expect(layout.toolbar.height).toBeLessThanOrEqual(64);
+    expect(layout.toolbar.right - layout.fullscreen.right).toBeLessThanOrEqual(10);
+    await page.screenshot({ path: `docs/superpowers/evidence/lyrie-desktop-${width}.png` });
+  }
+
+  await page.setViewportSize({ width: 320, height: 780 });
+  const mobile = await page.evaluate(() => ({
+    scrollWidth: document.documentElement.scrollWidth,
+    clientWidth: document.documentElement.clientWidth,
+  }));
+  expect(mobile.scrollWidth).toBe(mobile.clientWidth);
+  await page.screenshot({ path: 'docs/superpowers/evidence/lyrie-mobile-320.png' });
+});
+
+test('mobile preview controls remain separated and the empty state stays centered', async ({ page }) => {
+  await page.goto('/');
+  for (const width of [320, 390]) {
+    await page.setViewportSize({ width, height: 844 });
+    const layout = await page.evaluate(() => {
+      const toolbar = document.querySelector('.preview-toolbar')!;
+      const canvas = document.querySelector('.pdf-preview-viewport')!.getBoundingClientRect();
+      const empty = document.querySelector('.empty-state')!.getBoundingClientRect();
+      const items = Array.from(toolbar.querySelectorAll('.toolbar-group > *, .fullscreen-button'), (element) => {
+        const rect = element.getBoundingClientRect();
+        return { left: rect.left, right: rect.right, top: rect.top, bottom: rect.bottom };
+      });
+      const overlaps: Array<[number, number]> = [];
+      for (let first = 0; first < items.length; first += 1) {
+        for (let second = first + 1; second < items.length; second += 1) {
+          const a = items[first]!;
+          const b = items[second]!;
+          if (a.left < b.right && b.left < a.right && a.top < b.bottom && b.top < a.bottom) overlaps.push([first, second]);
+        }
+      }
+      return {
+        scrollWidth: document.documentElement.scrollWidth,
+        clientWidth: document.documentElement.clientWidth,
+        overlaps,
+        canvasCenterY: canvas.top + canvas.height / 2,
+        emptyCenterY: empty.top + empty.height / 2,
+      };
+    });
+    expect(layout.scrollWidth).toBe(layout.clientWidth);
+    expect(layout.overlaps).toEqual([]);
+    expect(Math.abs(layout.canvasCenterY - layout.emptyCenterY)).toBeLessThanOrEqual(1);
+    if (width === 390) await page.screenshot({ path: 'docs/superpowers/evidence/lyrie-mobile-390.png', fullPage: true });
   }
 });
 

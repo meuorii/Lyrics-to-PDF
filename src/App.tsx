@@ -1,4 +1,4 @@
-import { useRef, useState, type FormEvent } from 'react';
+import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react';
 import {
   LoaderCircle,
   RotateCcw,
@@ -8,6 +8,7 @@ import { processSongInput } from './features/lyrics/validate-input';
 import { PAPER_SIZES } from './features/paper/paper-sizes';
 import { convertDimensionUnit, formatMillimetersInUnit, parseDimensionMillimeters } from './features/workspace/paper-units';
 import { PdfGenerationError, type MeasurementUnit, type PdfSnapshot, type PaperSize, type SongProcessingInput, type ValidationIssue } from './types/domain';
+import { useToast } from './components/ui/toast/useToast';
 
 type FormState = {
   title: string;
@@ -25,6 +26,13 @@ type GenerationState =
   | { status: 'idle' }
   | { status: 'loading' }
   | { status: 'error'; message: string };
+
+type PendingGenerationToast = {
+  id: string;
+  requestId: number;
+  snapshot: PdfSnapshot | null;
+  isUpdate: boolean;
+};
 
 const DEFAULT_FORM: FormState = {
   title: '',
@@ -95,6 +103,7 @@ function issueId(field: ValidationIssue['field']): string {
 }
 
 export default function App() {
+  const { show: showToast, replace: replaceToast, dismiss: dismissToast } = useToast();
   const [form, setForm] = useState<FormState>({ ...DEFAULT_FORM });
   const [issues, setIssues] = useState<ValidationIssue[]>([]);
   const [generation, setGeneration] = useState<GenerationState>({ status: 'idle' });
@@ -107,13 +116,72 @@ export default function App() {
   const requestRef = useRef(0);
   const generationBusyRef = useRef(false);
   const titleInputRef = useRef<HTMLInputElement>(null);
+  const generationToastRef = useRef<PendingGenerationToast | null>(null);
+  const wasStaleRef = useRef(false);
 
   const currentIdentity = inputIdentity(form);
   const isStale = snapshot !== null && (snapshotIdentity !== currentIdentity || snapshotNeedsRefresh);
   const fieldIssues = (field: ValidationIssue['field']) => issues.filter((issue) => issue.field === field);
   const isLoading = generationBusy;
 
+  function cancelGenerationToast() {
+    if (!generationToastRef.current) return;
+    dismissToast(generationToastRef.current.id);
+    generationToastRef.current = null;
+  }
+
+  useEffect(() => {
+    if (isStale && !wasStaleRef.current) {
+      showToast({
+        variant: 'warning',
+        title: 'Document needs updating',
+        description: 'Update your PDF to apply your changes.',
+        dedupeKey: 'document-stale',
+      });
+    }
+    wasStaleRef.current = isStale;
+  }, [isStale, showToast]);
+
+  const handlePreviewReady = useCallback((readySnapshot: PdfSnapshot) => {
+    const pending = generationToastRef.current;
+    if (!pending || pending.snapshot !== readySnapshot || pending.requestId !== requestRef.current) return;
+    replaceToast(pending.id, {
+      variant: 'success',
+      title: pending.isUpdate ? 'PDF updated' : 'PDF generated',
+      description: pending.isUpdate ? 'Your updated PDF is ready.' : 'Your document is ready to download.',
+    });
+    generationToastRef.current = null;
+  }, [replaceToast]);
+
+  const handlePreviewError = useCallback((failedSnapshot: PdfSnapshot) => {
+    const pending = generationToastRef.current;
+    if (pending?.snapshot === failedSnapshot) {
+      replaceToast(pending.id, {
+        variant: 'error',
+        title: 'Couldn’t load preview',
+        description: 'Your PDF is still available. Retry the preview.',
+      });
+      generationToastRef.current = null;
+      return;
+    }
+    showToast({
+      variant: 'error',
+      title: 'Couldn’t load preview',
+      description: 'Your PDF is still available. Retry the preview.',
+      dedupeKey: `preview-error:${failedSnapshot.filename}`,
+    });
+  }, [replaceToast, showToast]);
+
+  const handleDownloadStarted = useCallback(() => {
+    showToast({ variant: 'info', title: 'Download started', description: 'Your PDF download was handed to the browser.', dedupeKey: 'download-started' });
+  }, [showToast]);
+
+  const handleDownloadFailed = useCallback(() => {
+    showToast({ variant: 'error', title: 'Couldn’t download PDF', description: 'The browser could not start the download. Try again.', dedupeKey: 'download-failed' });
+  }, [showToast]);
+
   function updateForm<K extends keyof FormState>(key: K, value: FormState[K], issueField?: ValidationIssue['field']) {
+    cancelGenerationToast();
     requestRef.current += 1;
     revisionRef.current += 1;
     setForm((current) => ({ ...current, [key]: value }));
@@ -123,6 +191,7 @@ export default function App() {
   }
 
   function updateDimension(dimension: 'width' | 'height', value: string) {
+    cancelGenerationToast();
     requestRef.current += 1;
     revisionRef.current += 1;
     setIssues((current) => current.filter((issue) => issue.field !== 'paper'));
@@ -178,6 +247,13 @@ export default function App() {
     const sourceRevision = revisionRef.current;
     const sourceIdentity = currentIdentity;
     setGeneration({ status: 'loading' });
+    const toastId = showToast({
+      variant: 'loading',
+      title: 'Generating PDF',
+      description: 'Preparing your printable document.',
+      dedupeKey: `generation:${requestId}`,
+    });
+    generationToastRef.current = { id: toastId, requestId, snapshot: null, isUpdate: Boolean(snapshot) };
     generationBusyRef.current = true;
     setGenerationBusy(true);
     if (snapshot && snapshotIdentity === sourceIdentity) setSnapshotNeedsRefresh(true);
@@ -185,12 +261,21 @@ export default function App() {
       const { generatePdf } = await import('./features/pdf/generate-pdf');
       const generated = await generatePdf(processed.data);
       if (requestRef.current !== requestId || revisionRef.current !== sourceRevision) return;
+      if (generationToastRef.current?.requestId === requestId) generationToastRef.current.snapshot = generated;
       setSnapshot(generated);
       setSnapshotIdentity(sourceIdentity);
       setSnapshotNeedsRefresh(false);
       setGeneration({ status: 'idle' });
     } catch (error) {
       if (requestRef.current !== requestId || revisionRef.current !== sourceRevision) return;
+      if (generationToastRef.current?.requestId === requestId) {
+        replaceToast(generationToastRef.current.id, {
+          variant: 'error',
+          title: 'Couldn’t generate PDF',
+          description: `${generationMessage(error)} Your lyrics are unchanged.`,
+        });
+        generationToastRef.current = null;
+      }
       setGeneration({ status: 'error', message: generationMessage(error) });
     } finally {
       generationBusyRef.current = false;
@@ -204,6 +289,7 @@ export default function App() {
       || form.customWidth !== DEFAULT_FORM.customWidth || form.customHeight !== DEFAULT_FORM.customHeight || form.unit !== DEFAULT_FORM.unit,
     );
     if (hasDraft && !window.confirm('Clear the song details, lyrics, paper settings, and generated PDF?')) return;
+    cancelGenerationToast();
     requestRef.current += 1;
     revisionRef.current += 1;
     setForm({ ...DEFAULT_FORM });
@@ -213,6 +299,7 @@ export default function App() {
     setSnapshotIdentity(null);
     setSnapshotNeedsRefresh(false);
     setGeneration({ status: 'idle' });
+    if (hasDraft) showToast({ variant: 'info', title: 'Editor reset', description: 'Your workspace has been cleared.', dedupeKey: 'editor-reset' });
     requestAnimationFrame(() => titleInputRef.current?.focus());
   }
 
@@ -220,47 +307,46 @@ export default function App() {
   const paperErrors = fieldIssues('paper');
 
   return (
-    <div className="app-shell">
-      <header className="masthead">
-        <div className="masthead-inner">
-          <a className="wordmark" href="#main" aria-label="Lyrie home">
-            <img src={`${import.meta.env.BASE_URL}brand/lyrie-logo.svg`} width="94" height="36" alt="" />
-          </a>
-          <p className="privacy-note"><span className="privacy-dot" aria-hidden="true" />Private by design</p>
-        </div>
+    <div className="app-shell min-h-screen">
+      <header className="masthead sticky top-4 z-50 mx-auto flex h-14 w-[calc(100%-2rem)] max-w-[1360px] items-center justify-between rounded-full border border-white/80 bg-white/85 px-1 shadow-sm backdrop-blur-2xl sm:top-6 sm:h-16 sm:w-full sm:px-6 xl:px-10">
+        <a className="wordmark inline-flex items-center" href="#main" aria-label="Lyrie home">
+          <img className="h-8 w-auto sm:h-9" src={`${import.meta.env.BASE_URL}brand/lyrie-logo.svg`} width="94" height="36" alt="" />
+        </a>
       </header>
 
-      <main className="workspace-main" id="main">
-        <div className="page-intro">
-          <h1>Lyrics made simple.</h1>
-          <p>Turn your favorite lyrics into clean, print-ready PDFs.</p>
+      <main className="workspace-main mx-auto w-full max-w-[1360px] px-4 pb-5 pt-8 sm:px-6 sm:pt-10 xl:px-10" id="main">
+        <div className="page-intro mb-6 text-white sm:mb-9">
+          <h1 className="m-0 text-[30px] font-extrabold leading-[1.15] tracking-[-0.04em] sm:text-[40px]">Lyrics made simple.</h1>
+          <p className="mt-2 text-sm leading-6 sm:text-base">Turn your favorite lyrics into clean, print-ready PDFs.</p>
         </div>
 
-        <div className="workspace-grid">
-          <section className="workspace-panel editor-panel" aria-labelledby="editor-heading" data-testid="editor-panel">
-            <div className="panel-heading editor-heading">
+        <div className="workspace-grid grid grid-cols-1 items-stretch gap-4 lg:grid-cols-[minmax(0,2fr)_minmax(0,3fr)] lg:gap-6">
+          <section className="workspace-panel editor-panel min-w-0 rounded-2xl border border-line bg-surface p-5 sm:p-6" aria-labelledby="editor-heading" data-testid="editor-panel">
+            <div className="mb-3 flex min-h-12 items-start justify-between gap-3">
               <div>
-                <h2 id="editor-heading">Document editor</h2>
-                <p>Song details, paper and lyrics</p>
+                <h2 className="m-0 text-xl font-bold leading-[1.35] tracking-[-0.02em]" id="editor-heading">Document editor</h2>
+                <p className="mt-1 text-[13px] leading-[1.45] text-muted">Add your song details and lyrics</p>
               </div>
-              <button className="reset-button" type="button" onClick={resetForm}>
-                <RotateCcw size={15} strokeWidth={1.8} aria-hidden="true" />Reset form
+              <button className="inline-flex min-h-11 flex-none items-center justify-center gap-2 rounded-lg px-1 text-[13px] font-semibold text-brand-blue hover:text-blue-hover hover:underline" type="button" aria-label="Reset form" onClick={resetForm}>
+                <RotateCcw size={15} strokeWidth={1.8} aria-hidden="true" /><span>Reset</span>
               </button>
             </div>
 
-            <form className="editor-form" noValidate onSubmit={handleGenerate}>
+            <form className="flex flex-col gap-3" noValidate onSubmit={handleGenerate}>
               {issues.length > 0 && (
-                <div className="validation-summary" role="alert" aria-labelledby="validation-title">
-                  <h3 id="validation-title">Check these details</h3>
-                  <ul>{issues.map((issue, index) => <li key={`${issue.field}-${index}`}>{issue.message}</li>)}</ul>
+                <div className="rounded-md border border-error bg-error-surface p-3 text-ink" role="alert" aria-labelledby="validation-title">
+                  <h3 className="m-0 text-[13px] font-bold text-error" id="validation-title">Check these details</h3>
+                  <ul className="mt-1.5 grid list-disc gap-1 pl-5 text-xs leading-5">{issues.map((issue, index) => <li key={`${issue.field}-${index}`}>{issue.message}</li>)}</ul>
                 </div>
               )}
 
-              <div className="field-group">
-                <label htmlFor="song-title">Song title</label>
+              <div className="flex min-w-0 flex-col gap-2">
+                <label className="text-sm font-semibold leading-[1.4]" htmlFor="song-title">Song title</label>
                 <input
+                  className="h-12 w-full min-w-0 rounded-lg border border-control-border bg-surface px-3 text-sm text-ink transition-[border-color,box-shadow] placeholder:text-muted hover:border-muted focus-visible:border-brand-blue focus-visible:shadow-[0_0_0_2px_rgb(0_53_173_/_14%)] aria-[invalid=true]:border-error disabled:bg-disabled-surface disabled:text-disabled"
                   autoComplete="off"
                   id="song-title"
+                  placeholder="Enter song title"
                   ref={titleInputRef}
                   name="title"
                   type="text"
@@ -269,14 +355,16 @@ export default function App() {
                   aria-describedby={fieldIssues('title').length ? issueId('title') : undefined}
                   onChange={(event) => updateForm('title', event.target.value, 'title')}
                 />
-                {fieldIssues('title').map((issue, index) => <p className="field-error" id={issueId('title')} key={index}>{issue.message}</p>)}
+                {fieldIssues('title').map((issue, index) => <p className="m-0 mt-px text-xs font-semibold leading-[1.45] text-error" id={issueId('title')} key={index}>{issue.message}</p>)}
               </div>
 
-              <div className="field-group">
-                <label htmlFor="artist">Artist</label>
+              <div className="flex min-w-0 flex-col gap-2">
+                <label className="text-sm font-semibold leading-[1.4]" htmlFor="artist">Artist</label>
                 <input
+                  className="h-12 w-full min-w-0 rounded-lg border border-control-border bg-surface px-3 text-sm text-ink transition-[border-color,box-shadow] placeholder:text-muted hover:border-muted focus-visible:border-brand-blue focus-visible:shadow-[0_0_0_2px_rgb(0_53_173_/_14%)] aria-[invalid=true]:border-error disabled:bg-disabled-surface disabled:text-disabled"
                   autoComplete="off"
                   id="artist"
+                  placeholder="Enter artist name"
                   name="artist"
                   type="text"
                   value={form.artist}
@@ -284,13 +372,33 @@ export default function App() {
                   aria-describedby={fieldIssues('artist').length ? issueId('artist') : undefined}
                   onChange={(event) => updateForm('artist', event.target.value, 'artist')}
                 />
-                {fieldIssues('artist').map((issue, index) => <p className="field-error" id={issueId('artist')} key={index}>{issue.message}</p>)}
+                {fieldIssues('artist').map((issue, index) => <p className="m-0 mt-px text-xs font-semibold leading-[1.45] text-error" id={issueId('artist')} key={index}>{issue.message}</p>)}
               </div>
 
-              <fieldset className="field-group paper-fields">
-                <legend>Paper</legend>
-                <label htmlFor="paper-size">Paper size</label>
+              <div className="flex min-w-0 flex-col gap-2">
+                <div className="flex items-baseline justify-between gap-3">
+                  <label className="text-sm font-semibold leading-[1.4]" htmlFor="lyrics">Lyrics</label>
+                  <span className="text-xs tabular-nums text-muted">{lyricsCount.toLocaleString()} {lyricsCount === 1 ? 'character' : 'characters'}</span>
+                </div>
+                <textarea
+                  className="min-h-[280px] w-full min-w-0 resize-y rounded-lg border border-control-border bg-canvas p-3 text-sm leading-[1.65] text-ink transition-[border-color,box-shadow] placeholder:text-muted hover:border-muted focus-visible:border-brand-blue focus-visible:shadow-[0_0_0_2px_rgb(0_53_173_/_14%)] aria-[invalid=true]:border-error disabled:bg-disabled-surface disabled:text-disabled"
+                  id="lyrics"
+                  name="lyrics"
+                  placeholder={'Paste your lyrics here\n\n[Verse 1]\nYour first lines go here…'}
+                  value={form.rawLyrics}
+                  aria-invalid={fieldIssues('lyrics').length > 0}
+                  aria-describedby={fieldIssues('lyrics').length ? issueId('lyrics') : undefined}
+                  onChange={(event) => updateForm('rawLyrics', event.target.value, 'lyrics')}
+                  spellCheck="false"
+                />
+                {fieldIssues('lyrics').map((issue, index) => <p className="m-0 mt-px text-xs font-semibold leading-[1.45] text-error" id={issueId('lyrics')} key={index}>{issue.message}</p>)}
+              </div>
+
+              <fieldset className="flex min-w-0 flex-col gap-2 rounded-xl border-0 bg-tint p-3">
+                <legend className="sr-only">Paper settings</legend>
+                <label className="text-sm font-semibold leading-[1.4]" htmlFor="paper-size">Paper size</label>
                 <select
+                  className="h-[42px] w-full min-w-0 rounded-lg border border-control-border bg-surface px-3 pr-8 text-sm text-ink transition-[border-color,box-shadow] hover:border-muted focus-visible:border-brand-blue focus-visible:shadow-[0_0_0_2px_rgb(0_53_173_/_14%)] aria-[invalid=true]:border-error disabled:bg-disabled-surface disabled:text-disabled"
                   id="paper-size"
                   name="paper"
                   value={form.paperSize}
@@ -301,10 +409,11 @@ export default function App() {
                   {PAPER_OPTIONS.map(({ value, label }) => <option key={value} value={value}>{label}</option>)}
                 </select>
                 {form.paperSize === 'Custom' && (
-                  <div className="custom-paper-fields">
-                    <div className="dimension-field">
-                      <label htmlFor="custom-width">Width</label>
+                  <div className="mt-1 grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)_76px] gap-2 max-[639px]:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_68px]">
+                    <div className="flex min-w-0 flex-col gap-1.5">
+                      <label className="text-xs font-semibold" htmlFor="custom-width">Width</label>
                       <input
+                        className="h-[42px] w-full min-w-0 rounded-lg border border-control-border bg-surface px-2.5 text-[13px] text-ink focus-visible:border-brand-blue aria-[invalid=true]:border-error"
                         id="custom-width"
                         name="width"
                         type="number"
@@ -317,9 +426,10 @@ export default function App() {
                         onChange={(event) => updateDimension('width', event.target.value)}
                       />
                     </div>
-                    <div className="dimension-field">
-                      <label htmlFor="custom-height">Height</label>
+                    <div className="flex min-w-0 flex-col gap-1.5">
+                      <label className="text-xs font-semibold" htmlFor="custom-height">Height</label>
                       <input
+                        className="h-[42px] w-full min-w-0 rounded-lg border border-control-border bg-surface px-2.5 text-[13px] text-ink focus-visible:border-brand-blue aria-[invalid=true]:border-error"
                         id="custom-height"
                         name="height"
                         type="number"
@@ -332,53 +442,39 @@ export default function App() {
                         onChange={(event) => updateDimension('height', event.target.value)}
                       />
                     </div>
-                    <div className="dimension-field unit-field">
-                      <label htmlFor="measurement-unit">Unit</label>
-                      <select id="measurement-unit" aria-label="Measurement unit" value={form.unit} onChange={(event) => changeUnit(event.target.value as MeasurementUnit)}>
+                    <div className="flex min-w-0 flex-col gap-1.5">
+                      <label className="text-xs font-semibold" htmlFor="measurement-unit">Unit</label>
+                      <select className="h-[42px] w-full rounded-lg border border-control-border bg-surface px-2.5 text-[13px] text-ink focus-visible:border-brand-blue" id="measurement-unit" aria-label="Measurement unit" value={form.unit} onChange={(event) => changeUnit(event.target.value as MeasurementUnit)}>
                         <option value="mm">mm</option>
                         <option value="in">in</option>
                       </select>
                     </div>
                   </div>
                 )}
-                {paperErrors.length > 0 && <div id={issueId('paper')} className="field-errors">{paperErrors.map((issue, index) => <p className="field-error" key={index}>{issue.message}</p>)}</div>}
-                <p className="field-hint">Portrait pages with the print margins already set.</p>
+                {paperErrors.length > 0 && <div id={issueId('paper')} className="grid gap-1">{paperErrors.map((issue, index) => <p className="m-0 mt-px text-xs font-semibold leading-[1.45] text-error" key={index}>{issue.message}</p>)}</div>}
+                <p className="m-0 mt-px text-xs leading-[1.5] text-muted">Portrait pages with the print margins already set.</p>
               </fieldset>
 
-              <div className="field-group lyrics-field">
-                <div className="label-row">
-                  <label htmlFor="lyrics">Lyrics</label>
-                  <span className="character-count">{lyricsCount.toLocaleString()} {lyricsCount === 1 ? 'character' : 'characters'}</span>
-                </div>
-                <textarea
-                  id="lyrics"
-                  name="lyrics"
-                  placeholder={'Paste your lyrics here\n\n[Verse 1]\nYour first lines go here…'}
-                  value={form.rawLyrics}
-                  aria-invalid={fieldIssues('lyrics').length > 0}
-                  aria-describedby={fieldIssues('lyrics').length ? issueId('lyrics') : undefined}
-                  onChange={(event) => updateForm('rawLyrics', event.target.value, 'lyrics')}
-                  spellCheck="false"
-                />
-                {fieldIssues('lyrics').map((issue, index) => <p className="field-error" id={issueId('lyrics')} key={index}>{issue.message}</p>)}
-              </div>
+              {warnings.length > 0 && <p className="m-0 rounded-md bg-warning-surface px-3 py-2.5 text-xs leading-[1.5] text-warning" role="status">{warnings.join(' ')}</p>}
 
-              {warnings.length > 0 && <p className="warning-message" role="status">{warnings.join(' ')}</p>}
-
-              <div className="form-actions">
-                <button className="primary-button" type="submit" disabled={isLoading}>
-                  {isLoading ? <><LoaderCircle size={17} className="spin-icon" aria-hidden="true" />Generating your PDF…</> : snapshot && isStale ? 'Update PDF' : generation.status === 'error' ? 'Try again' : 'Generate PDF'}
+              <div className="mt-0.5 flex items-center gap-4">
+                <button className="primary-button inline-flex min-h-12 w-full flex-1 items-center justify-center gap-2 rounded-lg border border-brand-blue bg-brand-blue px-5 text-sm font-bold text-white transition-colors hover:border-blue-hover hover:bg-blue-hover active:border-blue-pressed active:bg-blue-pressed disabled:cursor-wait disabled:border-disabled disabled:bg-disabled" type="submit" disabled={isLoading}>
+                  {isLoading ? <><LoaderCircle size={17} className="motion-safe:animate-spin" aria-hidden="true" />Generating your PDF…</> : snapshot && isStale ? 'Update PDF' : generation.status === 'error' ? 'Try again' : 'Generate PDF'}
                 </button>
               </div>
             </form>
           </section>
 
-          <section className="workspace-panel preview-panel" aria-labelledby="preview-heading" data-testid="preview-panel">
+          <section className="workspace-panel preview-panel min-w-0 rounded-2xl border border-line bg-surface p-5 sm:p-6" aria-labelledby="preview-heading" data-testid="preview-panel">
             <PdfPreview
               snapshot={snapshot}
               stale={isStale}
               generationStatus={generation.status}
               generationError={generation.status === 'error' ? generation.message : undefined}
+              onPreviewReady={handlePreviewReady}
+              onPreviewError={handlePreviewError}
+              onDownloadStarted={handleDownloadStarted}
+              onDownloadFailed={handleDownloadFailed}
             />
             <div className="sr-only" role="status" aria-live="polite" aria-atomic="true" aria-label="PDF document status">
               {generation.status === 'loading' && 'Creating PDF.'}
@@ -390,8 +486,8 @@ export default function App() {
           </section>
         </div>
 
-        <footer className="workspace-footer">
-          <p>Your lyrics are processed in this browser and are not saved.</p>
+        <footer className="workspace-footer pt-4">
+          <p className="m-0 text-xs leading-[1.5] text-muted">Your lyrics are processed in this browser and are not saved.</p>
         </footer>
       </main>
     </div>

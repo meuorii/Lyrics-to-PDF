@@ -28,7 +28,9 @@ There are seven weighted phases: technical foundation 12%; lyrics processing 12%
 - Keep PDF layout values and units centralized. Use points for PDF geometry and mm for user-facing paper dimensions.
 - Preserve user text and process it only according to documented rules.
 - Keep the PDF monochrome and independent of interface tokens.
-- Keep the interface minimalist editorial: Manrope, #FAFAF7, #F4E11B and #0035AD; restrained borders, 4–6 px corners, visible focus, and reduced motion.
+- Keep the interface minimalist editorial: Manrope, #FAFAF7, #F4E11B and #0035AD; restrained borders, 8 px controls, 12 px inner surfaces, 16 px panels, visible focus, and reduced motion. Keep the 64 px mobile / 72 px desktop masthead and 40:60 desktop editor-preview split.
+- Use Tailwind utilities for interface layout and controls; reserve stylesheets for global/theme rules and specialized PDF.js canvas, text layer, viewport mechanics, and reduced-motion behavior.
+- Use accessible in-app toast notifications for generation, stale state, download, failure, and meaningful reset events. Keep notifications inside the PDF preview subtree for native fullscreen; errors remain until dismissed.
 - Prefer the smallest implementation that fully satisfies the current phase. Avoid unused placeholders and speculative abstractions.
 - Keep lyrics in memory only. Do not add network submission, storage, analytics, or secrets.
 - `src/features/lyrics/` owns pure normalization, section recognition, and input validation; `src/features/paper/` owns presets, unit conversion, dimension resolution, and foundational geometry. `processSongInput` is the generation boundary; `src/features/pdf/` owns PDF layout, fonts, filenames, and generation. The PDF renderer embeds Roboto for Latin text and loads licensed Noto Sans CJK faces on demand for supported CJK scripts; it uses deterministic Japanese as the ambiguous Han-only default.

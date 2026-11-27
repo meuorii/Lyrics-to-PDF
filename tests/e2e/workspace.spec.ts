@@ -85,6 +85,52 @@ test('valid input creates a real snapshot, marks edits stale, regenerates, and r
   expect(runtimeErrors).toEqual([]);
 });
 
+test('generation toast stays on one request and success follows PDF.js readiness', async ({ page }) => {
+  await page.goto('/');
+  await page.getByLabel('Song title').fill('Toast lifecycle');
+  await page.getByLabel('Artist').fill('Workspace test');
+  await page.getByRole('textbox', { name: 'Lyrics' }).fill('A toast must wait for the preview to finish rendering.');
+  await page.getByRole('button', { name: 'Generate PDF' }).click();
+
+  const loading = page.getByRole('status', { name: /Generating PDF\. Preparing your printable document\./ });
+  await expect(loading).toBeVisible();
+  const toastId = await loading.getAttribute('data-toast-id');
+  await expect(page.getByLabel('PDF preview status')).toContainText('Preview ready');
+  const success = page.getByRole('status', { name: /PDF generated\. Your document is ready to download\./ });
+  await expect(success).toBeVisible();
+  await expect(success).toHaveAttribute('data-toast-id', toastId!);
+});
+
+test('stale warning appears once and a meaningful reset reports completion', async ({ page }) => {
+  await page.goto('/');
+  await page.getByLabel('Song title').fill('Stale toast');
+  await page.getByLabel('Artist').fill('Workspace test');
+  await page.getByRole('textbox', { name: 'Lyrics' }).fill('Keep this previous document until it can be updated.');
+  await page.getByRole('button', { name: 'Generate PDF' }).click();
+  await expect(page.getByLabel('PDF preview status')).toContainText('Preview ready');
+
+  await page.getByLabel('Song title').fill('Stale toast, revised');
+  await page.getByLabel('Artist').fill('Workspace test, revised');
+  const warning = page.getByRole('status', { name: /Document needs updating\. Update your PDF to apply your changes\./ });
+  await expect(warning).toBeVisible();
+  await expect(page.getByTestId('pdf-text-layer')).toContainText('Keep this previous document');
+  await expect(page.locator('[data-toast-id]').filter({ hasText: 'Document needs updating' })).toHaveCount(1);
+});
+
+test('reset toast follows an accepted reset and a cancelled reset keeps the draft', async ({ page }) => {
+  await page.goto('/');
+  await page.getByLabel('Song title').fill('Keep my draft');
+  page.once('dialog', (dialog) => void dialog.dismiss());
+  await page.getByRole('button', { name: 'Reset form' }).click();
+  await expect(page.getByLabel('Song title')).toHaveValue('Keep my draft');
+  await expect(page.getByRole('status', { name: /Editor reset/ })).toHaveCount(0);
+
+  page.once('dialog', (dialog) => void dialog.accept());
+  await page.getByRole('button', { name: 'Reset form' }).click();
+  await expect(page.getByLabel('Song title')).toHaveValue('');
+  await expect(page.getByRole('status', { name: /Editor reset\. Your workspace has been cleared\./ })).toBeVisible();
+});
+
 test('repeated generation and reset cycles clear the previous preview cleanly', async ({ page }) => {
   await page.goto('/');
   page.on('dialog', (dialog) => dialog.accept());
@@ -129,7 +175,7 @@ test('production editor canonicalizes an annotated Rap heading in the Long Bond 
 
 test('workspace stacks at small widths, splits at desktop, and never overflows horizontally', async ({ page }) => {
   await page.goto('/');
-  for (const width of [320, 375, 768, 1024, 1280, 1440]) {
+  for (const width of [320, 375, 390, 768, 1024, 1280, 1440]) {
     await page.setViewportSize({ width, height: 900 });
     const layout = await page.evaluate(() => {
       const editor = document.querySelector('[data-testid="editor-panel"]')!.getBoundingClientRect();
@@ -142,7 +188,7 @@ test('workspace stacks at small widths, splits at desktop, and never overflows h
       };
     });
     expect(layout.scrollWidth, `horizontal overflow at ${width}px`).toBeLessThanOrEqual(layout.viewportWidth);
-    if (width >= 1280) expect(Math.abs(layout.editorTop - layout.previewTop)).toBeLessThan(2);
+    if (width >= 1024) expect(Math.abs(layout.editorTop - layout.previewTop)).toBeLessThan(2);
     else expect(layout.previewTop).toBeGreaterThan(layout.editorTop);
     await page.screenshot({ path: `test-results/phase5-workspace-${width}.png` });
   }

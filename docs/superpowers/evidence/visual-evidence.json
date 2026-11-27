@@ -1,0 +1,160 @@
+{
+  "schemaVersion": "uizze.visual-evidence.v1",
+  "scope": "Lyrie V2 responsive editorial interface: centered desktop frame, initial preview alignment, mobile control wrapping, and the approved yellow-to-canvas background.",
+  "platform": "web",
+  "sources": [
+    {
+      "path": "../../../src/App.tsx",
+      "sha256": "a293913db309ca110392891d89257bde43cef962551bd4a8468c2ebfcaba8260"
+    },
+    {
+      "path": "../../../src/features/preview/PdfPreview.tsx",
+      "sha256": "dce63ab600229cd94ee5b156b1a983fd8166dffd4cfec09f9dbc8504361ccd33"
+    },
+    {
+      "path": "../../../src/styles.css",
+      "sha256": "c8d6e7813319115512e68563da3f9b484c806d16fbacd2ad18651fa98813119e"
+    },
+    {
+      "path": "../../../tests/e2e/app-shell.spec.ts",
+      "sha256": "2409bc685db5c83d15296e67216b2a6e76d98f1a9d402cf50af45f375f9ccfa6"
+    }
+  ],
+  "comparison": "target",
+  "target": {
+    "path": "C:\\Users\\fonti\\Downloads\\Initial state.png",
+    "kind": "image",
+    "sha256": "ddda7d77394b6f7308a3b43ada8c29fdae7ae95b6d43ed429f0280cc98db94b4"
+  },
+  "referencesReviewed": [
+    {
+      "path": "C:\\Users\\fonti\\Downloads\\download (2).svg",
+      "kind": "image",
+      "sha256": "0d2276e222cb254f216405c2d0a2e36b67369835dc0e8710f925621fb54bc720"
+    }
+  ],
+  "requiredChecks": [
+    {
+      "id": "desktop-reference-1440",
+      "kind": "visual"
+    },
+    {
+      "id": "wide-desktop-1920",
+      "kind": "visual"
+    },
+    {
+      "id": "wide-desktop-2560",
+      "kind": "visual"
+    },
+    {
+      "id": "mobile-controls-390",
+      "kind": "visual"
+    },
+    {
+      "id": "mobile-overflow-320",
+      "kind": "visual"
+    }
+  ],
+  "checks": [
+    {
+      "id": "desktop-reference-1440",
+      "status": "pass",
+      "state": "Initial empty editor and PDF preview",
+      "environment": {
+        "kind": "browser",
+        "name": "Chromium",
+        "width": 1440,
+        "height": 1064
+      },
+      "observed": "Compared with the inspected target at its exact dimensions. The usable frame is centered and 1280 px wide; panels follow the 40:60 layout, the toolbar stays on one row, and the empty-state group centers inside the preview canvas. White introduction text on the requested yellow has measured contrast of 1.34:1 and is a documented user-directed exception.",
+      "artifacts": [
+        {
+          "path": "lyrie-desktop-1440.png",
+          "kind": "image",
+          "sha256": "664796196ca68a2ece331cc0602db106bc2ad43a0ac9b41be143d839871999b4"
+        }
+      ]
+    },
+    {
+      "id": "wide-desktop-1920",
+      "status": "pass",
+      "state": "Initial empty editor and PDF preview at wide viewport",
+      "environment": {
+        "kind": "browser",
+        "name": "Chromium",
+        "width": 1920,
+        "height": 1080
+      },
+      "observed": "The usable frame remains 1280 px and centered; editor/preview proportions remain 40:60; preview controls use one row; the empty state is centered in both axes.",
+      "artifacts": [
+        {
+          "path": "lyrie-desktop-1920.png",
+          "kind": "image",
+          "sha256": "f817235ce832fbf44dd5f3f9d00a4c60a844ff0239ebc0bb42de3ec4eeb9bfe0"
+        }
+      ]
+    },
+    {
+      "id": "wide-desktop-2560",
+      "status": "pass",
+      "state": "Initial empty editor and PDF preview at ultrawide viewport",
+      "environment": {
+        "kind": "browser",
+        "name": "Chromium",
+        "width": 2560,
+        "height": 1440
+      },
+      "observed": "The usable frame remains 1280 px and centered rather than expanding or shifting with viewport width; panels and preview controls remain aligned without horizontal overflow.",
+      "artifacts": [
+        {
+          "path": "lyrie-desktop-2560.png",
+          "kind": "image",
+          "sha256": "903258ef0d59806c6b1b7c577f45e5d9bcd535e4fcbe867225725d5e65f57d5e"
+        }
+      ]
+    },
+    {
+      "id": "mobile-controls-390",
+      "status": "pass",
+      "state": "Initial editor and empty preview on mobile",
+      "environment": {
+        "kind": "browser",
+        "name": "Chromium",
+        "width": 390,
+        "height": 844
+      },
+      "observed": "Toolbar groups wrap by intrinsic width with no overlapping controls; the empty state stays centered inside the canvas, and the editor flows above preview.",
+      "artifacts": [
+        {
+          "path": "lyrie-mobile-390.png",
+          "kind": "image",
+          "sha256": "793e25525decdb80177b5cfd83e84d643ab03790fa4e7ede9dc2259de4f7734f"
+        }
+      ]
+    },
+    {
+      "id": "mobile-overflow-320",
+      "status": "pass",
+      "state": "Initial editor at narrow mobile width",
+      "environment": {
+        "kind": "browser",
+        "name": "Chromium",
+        "width": 320,
+        "height": 780
+      },
+      "observed": "Document scroll width equals viewport width; the initial interface introduces no horizontal overflow.",
+      "artifacts": [
+        {
+          "path": "lyrie-mobile-320.png",
+          "kind": "image",
+          "sha256": "f24b00af41b6a615c485482e17d2475c1cb9b6d13367374ef2cb429380ad57e9"
+        }
+      ]
+    }
+  ],
+  "notes": [
+    "The white-on-yellow contrast is 1.34:1. The user requested the white introduction on #F4E11B; this fails WCAG text contrast thresholds and is not claimed as passing.",
+    "No deployment was performed; the separate deployed-browser release gate remains open."
+  ],
+  "unresolved": []
+}

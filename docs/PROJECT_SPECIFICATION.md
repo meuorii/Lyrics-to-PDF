@@ -6,6 +6,12 @@ The public-facing product name is **Lyrie** and its tagline is **Lyrics made sim
 
 **Authority:** `../Lyrics_to_PDF_Complete_Product_and_Implementation_Specification.pdf` (14 pages, version 1.0, prepared 26 November 2026). Source requirements below include page references. The original remains authoritative.
 
+## Approved V2 interface and notifications amendment
+
+Use the supplied desktop and mobile interface references as the Phase 7 refinement target. The interface uses a 64 px mobile / 72 px desktop masthead without an in-header privacy badge; retain the in-browser privacy statement in the page footer. At desktop widths use a 40:60 editor-to-preview split and stack editor before preview on mobile. Keep the editor order title, artist, lyrics, paper settings, primary action, reset action. Use 8 px controls, 12 px inner surfaces, 16 px panels, Tailwind-first interface layout/control utilities, the existing Lyrie palette and Manrope. Preserve specialized PDF.js canvas/text-layer/viewport styles and all generated PDF geometry and bytes.
+
+Add accessible in-app notifications for generation start and success/failure, preview failure, stale state, download start/failure, and meaningful reset. Generation success follows successful PDF.js rendering; loading is replaced in place. Keep errors persistent until dismissed, show at most two toasts while queuing extras, support deduplication and pauseable timed progress, and place the viewport inside the preview subtree so notifications remain available in native fullscreen. Keep inline validation and existing recoverable error details. This amendment does not authorize deployment or close Phase 7.
+
 ## Product overview (source pages 1–2)
 
 A focused browser utility for preparing one clean, printable lyric sheet from user-pasted lyrics. Users enter song title and artist, paste plain text, choose paper settings, generate/inspect a PDF, then download it. No account or URL is required.
@@ -55,7 +61,7 @@ Convert mm to PDF points using `mm × 72 / 25.4`. Usable page width subtracts tw
 
 ## Design system and accessibility (source pages 8–10)
 
-Minimalist Editorial: canvas #FAFAF7 (60% guidance), yellow #F4E11B (30% guidance), blue #0035AD (10% guidance), white surfaces, ink #1C1C1C/muted #66665F, border #E3E3DC/preview #EFEFEA, tint #FFF9D6, hover #002B8F/pressed #00216E. Proportions describe hierarchy, not literal pixel coverage. Manrope; 4–6 px corners; 8 px spacing rhythm; flat surfaces and restrained motion. Avoid Abii-style bento, mascot, oversized hero, gradient, glass, heavy shadows or decorative animation.
+Minimalist Editorial: canvas #FAFAF7 (60% guidance), yellow #F4E11B (30% guidance), blue #0035AD (10% guidance), white surfaces, ink #1C1C1C/muted #66665F, border #E3E3DC/preview #EFEFEA, tint #FFF9D6, hover #002B8F/pressed #00216E. Proportions describe hierarchy, not literal pixel coverage. Manrope; 4–6 px corners; 8 px spacing rhythm; flat surfaces and restrained motion. Avoid Abii-style bento, mascot, oversized hero, decorative gradients, glass, heavy shadows or decorative animation. **User-approved exception (2026-11-27):** the page canvas may use one very faint radial transition from #F4E11B into #FAFAF7; keep cards, controls, text, and PDF surfaces flat.
 
 Target WCAG 2.2 AA. Persistent labels; logical keyboard order; visible focus; status/error announcements; keyboard controls and no fullscreen traps; reduced motion. At 320, 375, 768 and 1280 px there is no horizontal document overflow. On mobile editor precedes stacked preview; preview may pan internally when zoomed.
 

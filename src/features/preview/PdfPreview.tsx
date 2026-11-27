@@ -21,6 +21,7 @@ import {
   type ZoomDirection,
 } from './preview-scale';
 import type { PdfSnapshot } from '../../types/domain';
+import ToastViewport from '../../components/ui/toast/ToastViewport';
 import type { PDFDocumentLoadingTask, PDFDocumentProxy, PDFPageProxy, RenderTask, TextLayer } from 'pdfjs-dist';
 
 type PreviewStatus =
@@ -39,6 +40,10 @@ type PdfPreviewProps = {
   stale: boolean;
   generationStatus: GenerationStatus;
   generationError?: string;
+  onPreviewReady?: (snapshot: PdfSnapshot) => void;
+  onPreviewError?: (snapshot: PdfSnapshot) => void;
+  onDownloadStarted?: () => void;
+  onDownloadFailed?: () => void;
 };
 
 type PreviewResources = {
@@ -112,7 +117,7 @@ function focusableElements(element: HTMLElement): HTMLElement[] {
   )).filter((item) => item.getAttribute('aria-hidden') !== 'true');
 }
 
-export default function PdfPreview({ snapshot, stale, generationStatus, generationError }: PdfPreviewProps) {
+export default function PdfPreview({ snapshot, stale, generationStatus, generationError, onPreviewReady, onPreviewError, onDownloadStarted, onDownloadFailed }: PdfPreviewProps) {
   const [previewState, setPreviewState] = useState<PreviewStatus>({ status: 'empty' });
   const [pageCount, setPageCount] = useState(0);
   const [loadedSnapshot, setLoadedSnapshot] = useState<PdfSnapshot | null>(null);
@@ -154,11 +159,15 @@ export default function PdfPreview({ snapshot, stale, generationStatus, generati
   const generationStatusRef = useRef(generationStatus);
   const readyPageRef = useRef(0);
   const fullscreenButtonRef = useRef<HTMLButtonElement>(null);
+  const onPreviewReadyRef = useRef(onPreviewReady);
+  const onPreviewErrorRef = useRef(onPreviewError);
   useEffect(() => {
+    onPreviewReadyRef.current = onPreviewReady;
+    onPreviewErrorRef.current = onPreviewError;
     currentSnapshotRef.current = snapshot;
     currentStaleRef.current = stale;
     generationStatusRef.current = generationStatus;
-  }, [snapshot, stale, generationStatus]);
+  }, [snapshot, stale, generationStatus, onPreviewReady, onPreviewError]);
 
   const resources = useMemo<PreviewResources>(() => ({
     loadingTask: loadingTaskRef,
@@ -253,6 +262,7 @@ export default function PdfPreview({ snapshot, stale, generationStatus, generati
         setDocumentRevision(revision);
       } catch (error) {
         if (active && documentRevisionRef.current === revision && !isExpectedCancellation(error)) {
+          onPreviewErrorRef.current?.(snapshot);
           setPreviewState({
             status: 'error',
             stage: 'loading',
@@ -382,8 +392,10 @@ export default function PdfPreview({ snapshot, stale, generationStatus, generati
         renderedSnapshotRef.current = snapshot;
         setRenderedPage({ snapshot, pageNumber, revision });
         setPreviewState({ status: 'ready', pageNumber });
+        onPreviewReadyRef.current?.(snapshot);
       } catch (error) {
         if (isCurrent() && !isExpectedCancellation(error)) {
+          onPreviewErrorRef.current?.(snapshot);
           setPreviewState({
             status: 'error',
             stage: 'rendering',
@@ -536,8 +548,10 @@ export default function PdfPreview({ snapshot, stale, generationStatus, generati
     try {
       downloadPdf(snapshot);
       setDownloadNotice('Download started.');
+      onDownloadStarted?.();
     } catch {
       setDownloadNotice('The download could not be started. Try again.');
+      onDownloadFailed?.();
     }
   }
 
@@ -590,7 +604,7 @@ export default function PdfPreview({ snapshot, stale, generationStatus, generati
   return (
     <div
       ref={previewRootRef}
-      className={`pdf-preview-content${fallbackFullscreen ? ' expanded-fallback' : ''}`}
+      className={`pdf-preview-content flex min-h-0 flex-1 flex-col${fallbackFullscreen ? ' expanded-fallback' : ''}`}
       role={isExpanded ? 'dialog' : undefined}
       aria-modal={isExpanded ? true : undefined}
       aria-label={isExpanded ? 'Expanded PDF preview' : undefined}
@@ -599,109 +613,107 @@ export default function PdfPreview({ snapshot, stale, generationStatus, generati
       onKeyDown={onRootKeyDown}
       data-testid="pdf-preview-content"
     >
-      <div className="panel-heading preview-heading">
+      <div className="mb-4 flex min-h-12 flex-none items-start justify-between gap-3">
         <div>
-          <h2>PDF preview</h2>
-          <p>{snapshot ? snapshot.filename : 'A print-ready document, made in your browser'}</p>
+          <h2 className="m-0 text-xl font-bold leading-[1.35] tracking-[-0.02em]">PDF preview</h2>
+          <p className="mt-1 text-[13px] leading-[1.45] text-muted">{snapshot ? snapshot.filename : 'A print-ready document, made in your browser'}</p>
         </div>
-        {snapshot && <span className={`preview-version${stale ? ' is-stale' : ''}`}>{stale ? 'Previous version' : 'Current version'}</span>}
+        {snapshot && <span className={`flex-none rounded px-2 py-1 text-[10px] font-extrabold ${stale ? 'bg-warning-surface text-warning' : 'bg-success-surface text-success'}`}>{stale ? 'Previous version' : 'Current version'}</span>}
       </div>
 
-      {stale && snapshot && <p className="stale-message preview-stale-message" role="status"><strong>Your document has changed</strong><span>Update your PDF before downloading.</span></p>}
-      {generationStatus === 'loading' && snapshot && <p className="viewer-generation-note" role="status">Generating an updated PDF. Downloads are paused.</p>}
-      {generationStatus === 'error' && snapshot && <p className="viewer-generation-note" role="status">The update could not be generated. This previous PDF is still available for preview.</p>}
+      {stale && snapshot && <p className="mb-4 grid flex-none gap-1 rounded bg-warning-surface px-3 py-2.5 text-xs leading-[1.5] text-warning" role="status"><strong className="font-extrabold">Your document has changed</strong><span>Update your PDF before downloading.</span></p>}
+      {generationStatus === 'loading' && snapshot && <p className="mb-3 flex-none text-xs text-muted" role="status">Generating an updated PDF. Downloads are paused.</p>}
+      {generationStatus === 'error' && snapshot && <p className="mb-3 flex-none text-xs text-muted" role="status">The update could not be generated. This previous PDF is still available for preview.</p>}
+
+      <div className="preview-toolbar mb-2.5 flex min-h-[62px] flex-none items-center justify-start gap-2 rounded-xl border border-line bg-canvas p-2" role="toolbar" aria-label="PDF preview controls">
+        <div className="toolbar-group page-navigation inline-flex min-w-0 items-center gap-2" aria-label="Page navigation">
+          <button className="inline-flex size-11 flex-none items-center justify-center rounded-lg border border-line bg-surface text-ink hover:border-brand-blue hover:text-brand-blue disabled:bg-disabled-surface disabled:text-disabled" type="button" aria-label="Previous page" onClick={() => requestPageChange(pageNumber - 1)} disabled={!isDocumentLoaded || pageNumber <= 1}>
+            <ChevronLeft size={17} aria-hidden="true" />
+          </button>
+          <span className="toolbar-readout page-indicator min-w-9 text-center text-xs font-semibold tabular-nums text-muted" data-testid="page-indicator" aria-live="polite" aria-atomic="true">{pageCount > 0 ? `${pageNumber} / ${pageCount}` : '— / —'}</span>
+          <button className="inline-flex size-11 flex-none items-center justify-center rounded-lg border border-line bg-surface text-ink hover:border-brand-blue hover:text-brand-blue disabled:bg-disabled-surface disabled:text-disabled" type="button" aria-label="Next page" onClick={() => requestPageChange(pageNumber + 1)} disabled={!isDocumentLoaded || pageNumber >= pageCount}>
+            <ChevronRight size={17} aria-hidden="true" />
+          </button>
+        </div>
+
+        <div className="toolbar-group zoom-controls inline-flex min-w-0 items-center gap-2" aria-label="Zoom controls">
+          <button className="inline-flex size-11 flex-none items-center justify-center rounded-lg border border-line bg-surface text-ink hover:border-brand-blue hover:text-brand-blue disabled:bg-disabled-surface disabled:text-disabled" type="button" aria-label="Zoom out" onClick={() => requestZoom('out')} disabled={!isDocumentLoaded || effectiveScale <= 0 || !canZoom(effectiveScale, 'out')}>
+            <ZoomOut size={16} aria-hidden="true" />
+          </button>
+          <span className="toolbar-readout zoom-readout min-w-9 text-center text-xs font-semibold tabular-nums text-muted" aria-label={`Zoom ${effectiveScale > 0 ? getZoomPercent(effectiveScale) : 'not available'} percent`}>{effectiveScale > 0 ? `${getZoomPercent(effectiveScale)}%` : '—%'}</span>
+          <button className="inline-flex size-11 flex-none items-center justify-center rounded-lg border border-line bg-surface text-ink hover:border-brand-blue hover:text-brand-blue disabled:bg-disabled-surface disabled:text-disabled" type="button" aria-label="Zoom in" onClick={() => requestZoom('in')} disabled={!isDocumentLoaded || effectiveScale <= 0 || !canZoom(effectiveScale, 'in')}>
+            <ZoomIn size={16} aria-hidden="true" />
+          </button>
+        </div>
+
+        <div className="toolbar-group fit-controls inline-flex min-w-0 items-center gap-2" aria-label="Page fit controls">
+          <button className="min-h-11 flex-none rounded-lg border border-line bg-surface px-3 text-xs font-semibold text-ink hover:border-brand-blue hover:text-brand-blue aria-[pressed=true]:border-brand-blue aria-[pressed=true]:bg-selected aria-[pressed=true]:text-brand-blue disabled:bg-disabled-surface disabled:text-disabled" type="button" aria-label="Fit page" aria-pressed={zoomMode === 'page'} onClick={() => selectFitMode('page')} disabled={!isDocumentLoaded}>Fit page</button>
+          <button className="min-h-11 flex-none rounded-lg border border-line bg-surface px-3 text-xs font-semibold text-ink hover:border-brand-blue hover:text-brand-blue aria-[pressed=true]:border-brand-blue aria-[pressed=true]:bg-selected aria-[pressed=true]:text-brand-blue disabled:bg-disabled-surface disabled:text-disabled" type="button" aria-label="Fit page to width" aria-pressed={zoomMode === 'width'} onClick={() => selectFitMode('width')} disabled={!isDocumentLoaded}>Fit width</button>
+        </div>
+
+        <button
+          ref={fullscreenButtonRef}
+          className="fullscreen-button ml-auto inline-flex size-11 flex-none items-center justify-center rounded-lg border border-line bg-surface text-ink hover:border-brand-blue hover:text-brand-blue disabled:bg-disabled-surface disabled:text-disabled"
+          type="button"
+          aria-label={isExpanded ? 'Exit fullscreen' : 'Enter fullscreen'}
+          aria-pressed={isExpanded}
+          aria-haspopup="dialog"
+          aria-describedby={isExpanded ? 'expanded-preview-help' : undefined}
+          onClick={() => void toggleFullscreen()}
+          disabled={!snapshot}
+        >
+          {isExpanded ? <Minimize2 size={18} aria-hidden="true" /> : <Expand size={18} aria-hidden="true" />}
+          <span className="sr-only">{isExpanded ? 'Exit fullscreen' : 'Fullscreen'}</span>
+        </button>
+      </div>
 
       <div ref={viewportRef} className="preview-canvas pdf-preview-viewport" aria-busy={previewState.status === 'loading-document' || previewState.status === 'rendering-page'}>
         {previewState.status === 'empty' ? (
-          <div className="preview-state empty-state">
-            <span className="state-icon" aria-hidden="true"><FileText size={26} strokeWidth={1.5} /></span>
-            <h3>{generationStatus === 'loading' ? 'Generating your PDF…' : generationStatus === 'error' ? 'Unable to generate PDF' : 'No document yet'}</h3>
-            <p>{generationStatus === 'loading'
+          <div className="preview-state empty-state mx-auto my-auto w-full max-w-[480px] text-center">
+            <span className="mx-auto mb-3 grid size-14 place-items-center rounded-xl border border-line bg-surface text-brand-blue" aria-hidden="true"><FileText size={24} strokeWidth={1.5} /></span>
+            <h3 className="m-0 text-lg font-bold leading-[1.4] tracking-[-0.015em]">{generationStatus === 'loading' ? 'Generating your PDF…' : generationStatus === 'error' ? 'Unable to generate PDF' : 'No document yet'}</h3>
+            <p className="mx-auto mt-2 max-w-[48ch] text-sm leading-[1.55] text-muted">{generationStatus === 'loading'
               ? 'Preparing fonts and formatting your lyrics. Multilingual documents may take a little longer.'
               : generationStatus === 'error'
                 ? `${generationError ?? 'The PDF could not be generated.'} Your original text is still in the editor.`
                 : 'Add a title, artist and lyrics, then generate your PDF.'}</p>
           </div>
         ) : previewState.status === 'error' ? (
-          <div className="preview-state error-state" role="alert">
-            <h3>Unable to display PDF</h3>
-            <p>{previewState.message}</p>
-            <button className="secondary-button" type="button" onClick={retryPreview}>Retry preview</button>
+          <div className="preview-state error-state mx-auto my-auto w-full max-w-[480px] text-center" role="alert">
+            <h3 className="m-0 text-lg font-bold leading-[1.4] tracking-[-0.015em] text-error">Unable to display PDF</h3>
+            <p className="mx-auto mt-2 text-sm leading-[1.55] text-ink">{previewState.message}</p>
+            <button className="mt-3 inline-flex min-h-11 items-center justify-center rounded-lg border border-line bg-surface px-3 text-xs font-semibold text-ink hover:border-brand-blue hover:text-brand-blue" type="button" onClick={retryPreview}>Retry preview</button>
           </div>
         ) : (
           <div className={`pdf-page-frame${previewState.status === 'ready' ? ' is-ready' : ''}`} aria-label={`PDF page ${pageNumber} of ${pageCount}`} role="group">
             <canvas ref={canvasRef} className="pdf-page-canvas" data-testid="pdf-page-canvas" aria-hidden="true" />
             <div ref={textLayerElementRef} className="textLayer pdf-text-layer" data-testid="pdf-text-layer" role="document" aria-label={`Text of PDF page ${pageNumber}`} />
-            {previewState.status === 'rendering-page' && <div className="page-rendering-indicator"><LoaderCircle className="spin-icon" size={20} aria-hidden="true" /><span>Rendering page {pageNumber}…</span></div>}
+            {previewState.status === 'rendering-page' && <div className="page-rendering-indicator"><LoaderCircle className="motion-safe:animate-spin" size={20} aria-hidden="true" /><span>Rendering page {pageNumber}…</span></div>}
           </div>
         )}
       </div>
 
-      <div className="preview-toolbar" role="toolbar" aria-label="PDF preview controls">
-        <div className="toolbar-group page-navigation" aria-label="Page navigation">
-          <button type="button" aria-label="Previous page" onClick={() => requestPageChange(pageNumber - 1)} disabled={!isDocumentLoaded || pageNumber <= 1}>
-            <ChevronLeft size={17} aria-hidden="true" />
-          </button>
-          <span className="toolbar-readout page-indicator" data-testid="page-indicator" aria-live="polite" aria-atomic="true">{pageCount > 0 ? `${pageNumber} / ${pageCount}` : '— / —'}</span>
-          <button type="button" aria-label="Next page" onClick={() => requestPageChange(pageNumber + 1)} disabled={!isDocumentLoaded || pageNumber >= pageCount}>
-            <ChevronRight size={17} aria-hidden="true" />
-          </button>
-        </div>
-
-        <div className="toolbar-group zoom-controls" aria-label="Zoom controls">
-          <button type="button" aria-label="Zoom out" onClick={() => requestZoom('out')} disabled={!isDocumentLoaded || effectiveScale <= 0 || !canZoom(effectiveScale, 'out')}>
-            <ZoomOut size={16} aria-hidden="true" />
-          </button>
-          <span className="toolbar-readout zoom-readout" aria-label={`Zoom ${effectiveScale > 0 ? getZoomPercent(effectiveScale) : 'not available'} percent`}>{effectiveScale > 0 ? `${getZoomPercent(effectiveScale)}%` : '—%'}</span>
-          <button type="button" aria-label="Zoom in" onClick={() => requestZoom('in')} disabled={!isDocumentLoaded || effectiveScale <= 0 || !canZoom(effectiveScale, 'in')}>
-            <ZoomIn size={16} aria-hidden="true" />
+      <div className="preview-footer flex-none">
+        {snapshot ? (
+          <dl className="document-facts mt-3 grid grid-cols-4 gap-x-4 gap-y-3 border-t border-line py-3.5">
+            <div className="min-w-0"><dt className="text-[11px] leading-[1.4] text-muted">Pages</dt><dd className="mt-0.5 break-words text-xs font-bold leading-[1.4]">{pageCount > 0 ? `${pageCount} ${pageCount === 1 ? 'page' : 'pages'}` : `${snapshot.pageCount} ${snapshot.pageCount === 1 ? 'page' : 'pages'}`}</dd></div>
+            <div className="min-w-0"><dt className="text-[11px] leading-[1.4] text-muted">Paper</dt><dd className="mt-0.5 break-words text-xs font-bold leading-[1.4]">{paperLabel(snapshot)}</dd></div>
+            <div className="min-w-0"><dt className="text-[11px] leading-[1.4] text-muted">Orientation</dt><dd className="mt-0.5 break-words text-xs font-bold leading-[1.4]">Portrait</dd></div>
+            <div className="min-w-0"><dt className="text-[11px] leading-[1.4] text-muted">File size</dt><dd className="mt-0.5 break-words text-xs font-bold leading-[1.4]">{formatBytes(snapshot.blob.size)}</dd></div>
+          </dl>
+        ) : <p className="mt-4 border-t border-line pt-3.5 text-[13px] leading-[1.5] text-muted">No document generated</p>}
+        <div className="mt-6 flex min-h-[52px] items-center justify-between gap-4 max-[639px]:mt-2 max-[639px]:flex-col max-[639px]:items-stretch max-[639px]:gap-2">
+          <p className="m-0 flex-1 text-xs leading-[1.4] text-muted" id="expanded-preview-help">{fallbackFullscreen ? 'Expanded preview. Press Escape to return to the editor.' : stale ? 'Update your PDF to enable downloading.' : snapshot ? 'Inspect each page before downloading.' : 'Preview controls become available after generation.'}</p>
+          <button className="download-button inline-flex min-h-12 flex-none items-center justify-center gap-1.5 rounded-lg border border-brand-blue bg-brand-blue px-3 text-xs font-semibold text-white hover:bg-blue-hover disabled:border-disabled disabled:bg-disabled max-[639px]:w-full" type="button" aria-label="Download PDF" onClick={handleDownload} disabled={!downloadReady}>
+            <Download size={17} aria-hidden="true" /><span>Download PDF</span>
           </button>
         </div>
-
-        <div className="toolbar-group fit-controls" aria-label="Page fit controls">
-          <button type="button" aria-label="Fit page" aria-pressed={zoomMode === 'page'} onClick={() => selectFitMode('page')} disabled={!isDocumentLoaded}>Fit page</button>
-          <button type="button" aria-label="Fit page to width" aria-pressed={zoomMode === 'width'} onClick={() => selectFitMode('width')} disabled={!isDocumentLoaded}>Fit width</button>
-        </div>
-
-        <button
-          ref={fullscreenButtonRef}
-          className="fullscreen-button"
-          type="button"
-          aria-label={isExpanded ? 'Exit fullscreen' : 'Enter fullscreen'}
-          aria-pressed={isExpanded}
-          aria-haspopup="dialog"
-          onClick={() => void toggleFullscreen()}
-          disabled={!snapshot}
-        >
-          {isExpanded ? <Minimize2 size={15} aria-hidden="true" /> : <Expand size={15} aria-hidden="true" />}
-          <span>{isExpanded ? 'Exit fullscreen' : 'Fullscreen'}</span>
-        </button>
-
-        <button
-          className="download-button"
-          type="button"
-          aria-label="Download PDF"
-          onClick={handleDownload}
-          disabled={!downloadReady}
-        >
-          <Download size={15} aria-hidden="true" /><span>Download PDF</span>
-        </button>
       </div>
-
-      <p className="toolbar-note" id="expanded-preview-help">{fallbackFullscreen ? 'Expanded preview. Press Escape to return to the editor.' : stale ? 'Update your PDF to enable downloading.' : 'Use the controls to inspect each page before downloading.'}</p>
-
-      {snapshot && (
-        <dl className="document-facts preview-document-facts">
-          <div><dt>Pages</dt><dd>{pageCount > 0 ? `${pageCount} ${pageCount === 1 ? 'page' : 'pages'}` : `${snapshot.pageCount} ${snapshot.pageCount === 1 ? 'page' : 'pages'}`}</dd></div>
-          <div><dt>Paper</dt><dd>{paperLabel(snapshot)}</dd></div>
-          <div><dt>Orientation</dt><dd>Portrait</dd></div>
-          <div><dt>File size</dt><dd>{formatBytes(snapshot.blob.size)}</dd></div>
-        </dl>
-      )}
 
       <p className="sr-only" id="preview-status" role="status" aria-live="polite" aria-atomic="true" aria-label="PDF preview status">
         {statusMessage} {downloadNotice}
       </p>
+      <ToastViewport />
     </div>
   );
 }

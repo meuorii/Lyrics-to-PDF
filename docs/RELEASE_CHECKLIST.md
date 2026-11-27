@@ -14,6 +14,17 @@
 | SVG/PNG browser icons and Lyrie title/application/description/Open Graph metadata | `index.html`, dev and production-preview E2E asset response and metadata assertions | PASS |
 | Generated PDF remains unbranded and functional behavior is preserved | Full 260-test unit and 24-test workspace/E2E suites; no PDF source changes in this milestone | PASS |
 
+## V2 interface and notification milestone (COMPLETE)
+
+| Criterion | Evidence | Result |
+|---|---|---|
+| Approved responsive shell, field order, Tailwind-first surfaces, and retained PDF.js-specific styles | `src/App.tsx`, `src/styles.css`; Chromium no-overflow/stack/split checks at 320, 375, 390, 768, 1024, 1280 and 1440 px | PASS |
+| Accessible queue/dedupe/pause/dismiss toast foundation | `src/components/ui/toast/`; `tests/unit/toast.test.tsx` | FOCUSED PASS (9 tests) |
+| Generation success only after PDF.js readiness; stale/reset/download events and failure handling | `tests/e2e/workspace.spec.ts`, `tests/e2e/preview.spec.ts` | FOCUSED PASS (4 Chromium tests) |
+| Full test, typecheck, lint, E2E, build and responsive browser review | Typecheck, lint, 269 unit tests, 27 Chromium E2E tests, build, `git diff --check` | PASS |
+
+**Milestone result:** V2 interface and notification changes are complete. The production build emits the existing warning that the PDF generation chunk exceeds 500 kB. The deployed-browser smoke test remains the open Phase 7 gate; no deployment was performed.
+
 
 | ID | Priority | Evidence | Result |
 |---|---|---|---|

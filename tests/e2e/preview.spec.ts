@@ -50,10 +50,27 @@ test('renders the retained PDF snapshot and downloads those exact bytes', async 
   const downloadPromise = page.waitForEvent('download');
   await page.getByRole('button', { name: 'Download PDF' }).click();
   const download = await downloadPromise;
+  await expect(page.getByRole('status', { name: /Download started/ })).toBeVisible();
   expect(download.suggestedFilename()).toBe('Workspace test - Window Light.pdf');
   const downloadPath = await download.path();
   expect(downloadPath).not.toBeNull();
   expect(await readFile(downloadPath!)).toEqual(Buffer.from(previewSourceBytes));
+});
+
+test('keeps preview controls above the canvas and download in its footer', async ({ page }) => {
+  await page.goto('/');
+  const layout = await page.evaluate(() => {
+    const toolbar = document.querySelector('.preview-toolbar')!;
+    const canvas = document.querySelector('.pdf-preview-viewport')!;
+    const download = document.querySelector('.download-button')!;
+    const footer = document.querySelector('.preview-footer')!;
+    return {
+      toolbarBeforeCanvas: Boolean(toolbar.compareDocumentPosition(canvas) & Node.DOCUMENT_POSITION_FOLLOWING),
+      downloadInFooter: footer.contains(download),
+    };
+  });
+  expect(layout.toolbarBeforeCanvas).toBe(true);
+  expect(layout.downloadInFooter).toBe(true);
 });
 
 test('navigates real multipage content, zooms, and restores fit modes', async ({ page }) => {

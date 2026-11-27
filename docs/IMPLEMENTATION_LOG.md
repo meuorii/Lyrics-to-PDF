@@ -1,5 +1,27 @@
 # Implementation Log
 
+## 2026-11-27 — Centered initial layout and quiet palette gradient
+
+- Set a consistent centered 1280 px content frame for the masthead, headline, editor, and preview. Kept all text and controls left-aligned to match the supplied reference composition.
+- Added one faint `#F4E11B` to `#FAFAF7` canvas gradient, with flat white panels and blue actions. This is a narrow user-approved exception to the source specification's original gradient avoidance guidance; no gradient is applied to controls, cards, type, or PDFs.
+- Removed forced root/body minimum widths. On the live 320 px view, the classic scrollbar no longer causes a horizontal scrollbar (`scrollWidth` and `clientWidth` both 305); at desktop, live measurements show the masthead, intro, and workspace aligned at x=72.5 with a centered 1280 px frame in the 1425 px client area.
+- Checks: Chromium captures compared against the supplied 1440 × 1064 reference and inspected at 320 × 780. The focused layout regression passed 1/1 and the full Chromium suite passed 29/29; typecheck, lint, 269 unit tests, production build, and `git diff --check` passed. The visual evidence receipt’s integrity helper passed. The build retains the existing large-chunk advisory. No PDF behavior changed; Phase 7 remains in progress.
+
+## 2026-11-27 — Initial State Reference Match
+
+- Reorganized the preview so the toolbar appears above the canvas and document status/download appear below it, matching the supplied desktop reference. Tuned the page headline, panel spacing, form rhythm, toolbar sizing, and mobile panel padding against the reference screenshots.
+- Preserved the existing Lyrie brand, responsive editor behavior, PDF generation, preview controls, and download state. Added a focused browser regression for preview control ordering.
+- Validation: typecheck, lint, all 269 unit tests, and production build passed; focused preview E2E passed earlier. Full `npm run test:e2e` could not start because port 4173 is already occupied in the shared browser environment. `git diff --check` passed. Build retains the existing large-chunk advisory.
+- Phase 7 remains IN PROGRESS; this visual refinement does not close the deployed-browser release gate.
+
+## 2026-11-27 — Lyrie V2 interface and toast milestone (COMPLETE; Phase 7 IN PROGRESS)
+
+- Adopted the supplied mobile/desktop V2 references: removed the header privacy badge, set 64/72 px mobile/desktop masthead sizing, moved lyrics ahead of paper controls, applied a 40:60 wide layout, 8 px controls, 12 px preview canvas, and 16 px panels. Kept the footer privacy statement and specialized PDF.js rendering styles.
+- Added typed accessible toast notifications with timed progress pause/resume, a two-item visible limit and queue, dedupe, persistent error/loading, manual dismissal, and fullscreen-safe placement inside the PDF preview subtree.
+- Integrated loading-to-success replacement after the actual PDF.js render, plus preview/generation/download failures, one stale transition notification, and meaningful reset completion. Obsolete generation toast results are cancelled when the draft changes.
+- Added 9 toast unit tests and Chromium E2E coverage for generation readiness, stale notification, reset cancel/accept, and exact-byte download notification. Full suite evidence: typecheck and lint pass; 269 unit tests pass; all 27 Chromium E2E tests pass; production build passes; `git diff --check` passes. Responsive geometry and no-overflow checks pass at 320, 375, 390, 768, 1024, 1280 and 1440 px. Preview loading, ready, stale, errors and fullscreen remain covered by browser tests. Build reports the existing large PDF generation chunk warning.
+- The V2 milestone is complete; Phase 7 remains in progress because the deployed-browser gate is still open. No deployment was performed. Impeccable's companion CLI could not run because its engine cache required network/write access outside the authorized workspace; implementation proceeded from the approved user references and available design guidance.
+
 ## 2026-11-26 - Phase 1: Technical Foundation & Feasibility (COMPLETE)
 
 - **Skills applied:** `using-superpowers`, `brainstorming` (the user fixed the stack/scope and directed execution), `writing-plans`, `domain-modeling`, `ponytail`, `find-skills`, PDF skill, `test-driven-development`, `verification-before-completion`.
@@ -140,3 +162,13 @@
 - **Fresh validation:** `npm run typecheck` PASS; `npm run lint` PASS; `npm run test` PASS (260 tests / 13 files); `npm run test:e2e` PASS (24 Chromium tests); `npm run build` PASS; `git diff --check` PASS. The production-preview brand smoke passed 1/1. Existing Vite chunk-size advisory remains. No deployment was performed.
 - **Documentation:** Updated README, AGENTS, glossary, project specification, technical decisions (TD-20), Phase 7 plan, and the release checklist. Recorded this brand milestone complete while keeping Phase 7 IN PROGRESS at 92%.
 - **Limits and next action:** Browser favicon URLs and responses were verified, but browser chrome at 16 px/32 px on light/dark tabs was not visually inspected. Narrator was not independently repeated. Canonical URL, `og:url`, absolute `og:image`, social preview, and domain-dependent sitemap remain deferred pending approved production domain/assets. The mandatory deployed-browser worker/font and exact-byte download gate remains open; obtain deployment authorization before performing that release check.
+
+## 2026-11-27 — Phase 7 V2 final editorial interface refinement
+
+- **Diagnosis:** Measured the live app at 1440 and 1920 CSS px before editing. The old `max-width: 1440px` container combined with viewport-derived side padding produced a 1280 px usable frame at 1440, but only 815 px at 1920 (editor 316 px, preview 475 px), which shifted the content and wrapped the toolbar. Replaced it with one shared 1360 px outer frame and fixed desktop gutters that preserve 1280 px usable content at wide viewports.
+- **Interface:** Restored the centered 40:60 desktop workspace and one-row desktop preview toolbar; kept the title, artist, lyrics and paper order; matched the logo and copy alignment; added the floating translucent white logo pill, the single yellow-to-canvas page gradient, and the requested white intro text. Ordinary editor, panel, button, toolbar and empty-state styles now use Tailwind utilities, while CSS remains for global tokens/accessibility, the page gradient, responsive wrapping and PDF.js rendering/fullscreen mechanics.
+- **Preview and mobile:** The initial state now centers vertically and horizontally inside its real PDF viewport. Its document icon sits in the 56 px bordered white container; the state uses an 18 px title and 14 px description. Browser checks caught a 390 px toolbar collision during implementation; the mobile toolbar now wraps groups according to their real width. Tests assert no item overlap and centered empty-state geometry at 320 and 390 px.
+- **Evidence:** Reviewed Chromium screenshots at 1440 × 1064, 1920 × 1080, 2560 × 1440, 390 px full-page, and 320 × 780. Browser geometry confirms the centered 1280 px frame at wide sizes, the 40:60 split, single-row wide toolbar, and centered preview. Captures, target/reference hashes and source hashes are in `docs/superpowers/evidence/visual-evidence.json`.
+- **Accessibility limit:** White on `#F4E11B` measures 1.34:1, below WCAG text contrast thresholds. The white introduction is an explicit user-directed color exception; this refinement does not claim that combination passes contrast.
+- **Fresh final checks:** `npm run typecheck` PASS; `npm run lint` PASS; `npm run test` PASS (269 tests / 14 files); `npm run test:e2e` PASS (30 Chromium tests); `npm run build` PASS; `git diff --check` PASS. Vite reports the existing large-chunk advisory for the PDF worker and generation chunk. A first full browser pass found two old selector-hook assertions after the Tailwind migration; stable semantic class hooks were restored without reintroducing CSS styling, and the focused checks plus the final 30-test run passed.
+- **Status:** Phase 7 remains IN PROGRESS at 92%. No deployment was performed; the required deployed-browser worker/font and exact-byte download check remains open.
